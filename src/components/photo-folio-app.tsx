@@ -154,47 +154,57 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
     const unsubscribe = onSnapshot(
       q,
       async (querySnapshot) => {
-        const collectionsData: Collection[] = await Promise.all(
-          querySnapshot.docs.map(async (collectionDoc) => {
-            // Query photos without ordering to prevent index issues
-            const photosQuery = query(
-              collection(db, `collections/${collectionDoc.id}/photos`)
-            );
-            const photosSnapshot = await getDocs(photosQuery);
-            const photos = photosSnapshot.docs.map((photoDoc) => ({
-              id: photoDoc.id,
-              ...(photoDoc.data() as Omit<Photo, "id">),
-            }));
+        try {
+          const collectionsData: Collection[] = await Promise.all(
+            querySnapshot.docs.map(async (collectionDoc) => {
+              // Query photos without ordering to prevent index issues
+              const photosQuery = query(
+                collection(db, `collections/${collectionDoc.id}/photos`)
+              );
+              const photosSnapshot = await getDocs(photosQuery);
+              const photos = photosSnapshot.docs.map((photoDoc) => ({
+                id: photoDoc.id,
+                ...(photoDoc.data() as Omit<Photo, "id">),
+              }));
 
-            // Sort photos on the client
-            photos.sort((a, b) => {
+              // Sort photos on the client
+              photos.sort((a, b) => {
+                if (a.createdAt && b.createdAt) {
+                  return b.createdAt.toMillis() - a.createdAt.toMillis();
+                }
+                return 0;
+              });
+
+              return {
+                id: collectionDoc.id,
+                ...(collectionDoc.data() as Omit<
+                  Collection,
+                  "id" | "photos"
+                >),
+                photos,
+              };
+            })
+          );
+          
+          // Sort collections by creation date on the client
+          collectionsData.sort((a, b) => {
               if (a.createdAt && b.createdAt) {
-                return b.createdAt.toMillis() - a.createdAt.toMillis();
+                  return b.createdAt.toMillis() - a.createdAt.toMillis();
               }
               return 0;
-            });
+          });
 
-            return {
-              id: collectionDoc.id,
-              ...(collectionDoc.data() as Omit<
-                Collection,
-                "id" | "photos"
-              >),
-              photos,
-            };
-          })
-        );
-        
-        // Sort collections by creation date on the client
-        collectionsData.sort((a, b) => {
-            if (a.createdAt && b.createdAt) {
-                return b.createdAt.toMillis() - a.createdAt.toMillis();
-            }
-            return 0;
-        });
-
-        setCollections(collectionsData);
-        setLoading(false);
+          setCollections(collectionsData);
+          setLoading(false);
+        } catch (error) {
+          console.error("Error processing collections data:", error);
+          toast({
+            title: "Error Processing Data",
+            description: "There was an issue processing the data from the database. Please check the console for details.",
+            variant: "destructive",
+          });
+          setLoading(false);
+        }
       },
       (error) => {
         console.error("Error fetching collections:", error);
