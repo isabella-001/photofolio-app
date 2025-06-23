@@ -118,7 +118,18 @@ export function PhotoUploadPreviewDialog({
 
     } catch (error) {
       console.error("Error during upload:", error);
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred. Please try again.";
+      let errorMessage = "An unknown error occurred. Please try again.";
+      if (error instanceof Error) {
+        try {
+          // The error message from Vercel Blob client is the server's JSON response body.
+          const serverError = JSON.parse(error.message);
+          errorMessage = serverError.error || `A server error occurred: ${error.message}`;
+        } catch (parseError) {
+          // If parsing fails, use the original message from the client library.
+          errorMessage = error.message;
+        }
+      }
+
       toast({
         title: "Upload Failed",
         description: `Could not upload photos. Reason: ${errorMessage}`,

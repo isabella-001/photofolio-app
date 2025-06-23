@@ -6,8 +6,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   const body = (await request.json()) as HandleUploadBody;
  
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    const message = 'The Vercel Blob storage token is not set. Please connect a store in your Vercel project settings.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'The Vercel Blob storage token (BLOB_READ_WRITE_TOKEN) is not set in the Vercel project settings. Please ensure it is configured correctly and redeploy.' },
+      { status: 500 }
+    );
   }
 
   try {
@@ -31,7 +33,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   } catch (error) {
     const message = (error as Error).message;
     return NextResponse.json(
-      { error: message },
+      { error: `The Vercel Blob API returned an error: ${message}` },
       { status: 400 },
     );
   }
@@ -41,8 +43,10 @@ export async function DELETE(request: Request): Promise<NextResponse> {
     const { urls } = (await request.json()) as { urls: string[] };
 
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-        const message = 'The Vercel Blob storage token is not set. Please connect a store in your Vercel project settings.';
-        return NextResponse.json({ error: message }, { status: 500 });
+        return NextResponse.json(
+            { error: 'The Vercel Blob storage token (BLOB_READ_WRITE_TOKEN) is not set in the Vercel project settings.' },
+            { status: 500 }
+        );
     }
 
     if (!urls || !Array.isArray(urls)) {
