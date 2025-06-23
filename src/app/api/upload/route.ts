@@ -31,7 +31,7 @@ export async function POST(request: Request): Promise<NextResponse> {
  
     return NextResponse.json(jsonResponse);
   } catch (error) {
-    const message = (error as Error).message;
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
       { error: `The Vercel Blob API returned an error: ${message}` },
       { status: 400 },
@@ -58,7 +58,7 @@ export async function DELETE(request: Request): Promise<NextResponse> {
       return NextResponse.json({ success: true });
     } catch (error) {
       console.error("Error deleting blobs:", error);
-      const message = (error as Error).message;
+      const message = error instanceof Error ? error.message : String(error);
       return NextResponse.json(
         { error: `Failed to delete files: ${message}` },
         { status: 500 },

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { PlusCircle, Image as ImageIcon, Wind, Trash2, AlertCircle, LogOut, Users } from "lucide-react";
+import { PlusCircle, Image as ImageIcon, Wind, Trash2, AlertCircle, LogOut, Users, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -31,11 +31,15 @@ import {
   doc,
   getDocs,
   where,
+  updateDoc,
 } from "firebase/firestore";
 
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { ThemeToggle } from "./theme-toggle";
 import { ManageUsersDialog } from "./manage-users-dialog";
+import { EditCollectionDialog } from "./edit-collection-dialog";
+import { EditPhotoTitleDialog } from "./edit-photo-title-dialog";
+import { LightboxDialog } from "./lightbox-dialog";
 
 // Interfaces
 interface Photo {
@@ -75,6 +79,9 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
     id: null,
     title: "",
   });
+  const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null);
+  const [editingCollection, setEditingCollection] = useState<Collection | null>(null);
+  const [editingPhoto, setEditingPhoto] = useState<(Photo & { collectionId: string }) | null>(null);
 
   const handleLogout = useCallback(() => {
     try {
@@ -91,7 +98,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
     }
   }, [router, toast]);
 
-  if (!isFirebaseConfigured || !db) {
+  if (!db) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="container mx-auto max-w-2xl p-4 md:p-6">
@@ -397,6 +404,45 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
     setDialogState({ open: false, type: null, id: null, title: "" });
   };
 
+  const handleOpenEditCollection = (collection: Collection) => {
+    setEditingCollection(collection);
+  };
+
+  const handleUpdateCollectionTitle = async (newTitle: string) => {
+      if (!editingCollection || !db) return;
+      try {
+          const collectionRef = doc(db, 'collections', editingCollection.id);
+          await updateDoc(collectionRef, { title: newTitle });
+          toast({ title: 'Success', description: 'Collection title updated.' });
+          setEditingCollection(null);
+      } catch (error) {
+          console.error('Error updating collection title:', error);
+          toast({ title: 'Error', description: 'Failed to update collection title.', variant: 'destructive' });
+      }
+  };
+
+  const handleOpenEditPhoto = (photo: Photo, collectionId: string) => {
+      setEditingPhoto({ ...photo, collectionId });
+  };
+
+  const handleUpdatePhotoTitle = async (newTitle: string) => {
+      if (!editingPhoto || !db) return;
+      try {
+          const photoRef = doc(db, `collections/${editingPhoto.collectionId}/photos`, editingPhoto.id);
+          await updateDoc(photoRef, { title: newTitle });
+          toast({ title: 'Success', description: 'Photo title updated.' });
+          setEditingPhoto(null);
+      } catch (error) {
+          console.error('Error updating photo title:', error);
+          toast({ title: 'Error', description: 'Failed to update photo title.', variant: 'destructive' });
+      }
+  };
+
+  const handlePhotoClick = (photo: Photo) => {
+    setLightboxPhoto(photo);
+  };
+
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background text-foreground">
@@ -474,6 +520,24 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
         currentUser={userName}
         handleLogout={handleLogout}
       />
+      <EditCollectionDialog
+        open={!!editingCollection}
+        onOpenChange={(isOpen) => !isOpen && setEditingCollection(null)}
+        initialTitle={editingCollection?.title || ""}
+        onSave={handleUpdateCollectionTitle}
+      />
+      <EditPhotoTitleDialog
+        open={!!editingPhoto}
+        onOpenChange={(isOpen) => !isOpen && setEditingPhoto(null)}
+        initialTitle={editingPhoto?.title || ""}
+        onSave={handleUpdatePhotoTitle}
+      />
+      <LightboxDialog
+        open={!!lightboxPhoto}
+        onOpenChange={(isOpen) => !isOpen && setLightboxPhoto(null)}
+        src={lightboxPhoto?.src}
+        alt={lightboxPhoto?.title}
+      />
       <div className="min-h-screen bg-background text-foreground">
         <header className="sticky top-0 z-10 w-full bg-background/80 backdrop-blur-md border-b">
           <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-6">
@@ -532,23 +596,36 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
                         </CardDescription>
                       )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() =>
-                        handleDeleteCollection(collection.id, collection.title)
-                      }
-                    >
-                      <Trash2 className="h-5 w-5" />
-                      <span className="sr-only">Delete collection</span>
-                    </Button>
+                     <div className="flex items-center gap-2">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-primary"
+                            onClick={() => handleOpenEditCollection(collection)}
+                        >
+                            <Pencil className="h-5 w-5" />
+                            <span className="sr-only">Edit collection title</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() =>
+                            handleDeleteCollection(collection.id, collection.title)
+                          }
+                        >
+                          <Trash2 className="h-5 w-5" />
+                          <span className="sr-only">Delete collection</span>
+                        </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <PhotoGrid
                     images={collection.photos}
                     onDelete={handleDeletePhoto}
+                    onEditPhoto={(photo) => handleOpenEditPhoto(photo, collection.id)}
+                    onPhotoClick={handlePhotoClick}
                   />
                   <PhotoUploader
                     onUpload={(files) =>
