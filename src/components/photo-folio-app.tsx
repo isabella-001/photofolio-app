@@ -30,6 +30,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  where,
 } from "firebase/firestore";
 
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -47,6 +48,7 @@ interface Photo {
 interface Collection {
   id: string;
   title: string;
+  userName: string;
   photos: Photo[];
 }
 
@@ -128,43 +130,65 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
 
   // Fetch collections and their photos from Firestore
   useEffect(() => {
+    if (!db || !userName) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const q = query(
       collection(db, "collections"),
+      where("userName", "==", userName),
       orderBy("createdAt", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
-      const collectionsData: Collection[] = await Promise.all(
-        querySnapshot.docs.map(async (collectionDoc) => {
-          const photosQuery = query(
-            collection(db, `collections/${collectionDoc.id}/photos`),
-            orderBy("createdAt", "desc")
-          );
-          const photosSnapshot = await getDocs(photosQuery);
-          const photos = photosSnapshot.docs.map((photoDoc) => ({
-            id: photoDoc.id,
-            ...(photoDoc.data() as Omit<Photo, 'id'>),
-          }));
+    const unsubscribe = onSnapshot(
+      q,
+      async (querySnapshot) => {
+        const collectionsData: Collection[] = await Promise.all(
+          querySnapshot.docs.map(async (collectionDoc) => {
+            const photosQuery = query(
+              collection(db, `collections/${collectionDoc.id}/photos`),
+              orderBy("createdAt", "desc")
+            );
+            const photosSnapshot = await getDocs(photosQuery);
+            const photos = photosSnapshot.docs.map((photoDoc) => ({
+              id: photoDoc.id,
+              ...(photoDoc.data() as Omit<Photo, "id">),
+            }));
 
-          return {
-            id: collectionDoc.id,
-            title: collectionDoc.data().title,
-            photos,
-          };
-        })
-      );
-      setCollections(collectionsData);
-      setLoading(false);
-    });
+            return {
+              id: collectionDoc.id,
+              ...(collectionDoc.data() as Omit<
+                Collection,
+                "id" | "photos"
+              >),
+              photos,
+            };
+          })
+        );
+        setCollections(collectionsData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching collections:", error);
+        toast({
+          title: "Error Loading Data",
+          description:
+            "Could not load collections. This might be due to a missing database index or a network issue.",
+          variant: "destructive",
+        });
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
-  }, []);
+  }, [userName, toast]);
 
   const handleCreateCollection = async (title: string) => {
     try {
       await addDoc(collection(db, "collections"), {
         title,
+        userName: userName,
         createdAt: serverTimestamp(),
       });
       toast({
