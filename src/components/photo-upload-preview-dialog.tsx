@@ -106,15 +106,11 @@ export function PhotoUploadPreviewDialog({
 
       onConfirm(dataUriPhotos);
       onOpenChange(false);
-      toast({
-        title: "Upload successful!",
-        description: `${files.length} image(s) have been added.`,
-      });
     } catch (error) {
       console.error("Error during confirmation:", error);
       toast({
         title: "An error occurred",
-        description: "Could not add photos. Please try again.",
+        description: "Could not prepare photos for upload. Please try again.",
         variant: "destructive",
       });
     } finally {
