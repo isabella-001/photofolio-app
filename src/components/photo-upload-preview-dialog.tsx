@@ -118,9 +118,10 @@ export function PhotoUploadPreviewDialog({
 
     } catch (error) {
       console.error("Error during upload:", error);
+      const errorMessage = error instanceof Error ? error.message : "Please try again.";
       toast({
         title: "An error occurred",
-        description: "Could not upload photos. Please try again.",
+        description: `Could not upload photos. ${errorMessage}`,
         variant: "destructive",
       });
     } finally {
