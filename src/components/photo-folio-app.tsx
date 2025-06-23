@@ -32,6 +32,7 @@ import {
   getDocs,
   where,
   updateDoc,
+  Timestamp,
 } from "firebase/firestore";
 
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -47,6 +48,7 @@ interface Photo {
   src: string;
   title: string;
   hint?: string;
+  createdAt: Timestamp;
 }
 
 interface Collection {
@@ -54,6 +56,7 @@ interface Collection {
   title: string;
   userName: string;
   photos: Photo[];
+  createdAt: Timestamp;
 }
 
 export function PhotoFolioApp({ userName }: { userName: string }) {
@@ -142,10 +145,10 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
       return;
     }
     setLoading(true);
+    // Query without orderBy to avoid needing a composite index
     const q = query(
       collection(db, "collections"),
-      where("userName", "==", userName),
-      orderBy("createdAt", "desc")
+      where("userName", "==", userName)
     );
 
     const unsubscribe = onSnapshot(
@@ -153,15 +156,23 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
       async (querySnapshot) => {
         const collectionsData: Collection[] = await Promise.all(
           querySnapshot.docs.map(async (collectionDoc) => {
+            // Query photos without ordering to prevent index issues
             const photosQuery = query(
-              collection(db, `collections/${collectionDoc.id}/photos`),
-              orderBy("createdAt", "desc")
+              collection(db, `collections/${collectionDoc.id}/photos`)
             );
             const photosSnapshot = await getDocs(photosQuery);
             const photos = photosSnapshot.docs.map((photoDoc) => ({
               id: photoDoc.id,
               ...(photoDoc.data() as Omit<Photo, "id">),
             }));
+
+            // Sort photos on the client
+            photos.sort((a, b) => {
+              if (a.createdAt && b.createdAt) {
+                return b.createdAt.toMillis() - a.createdAt.toMillis();
+              }
+              return 0;
+            });
 
             return {
               id: collectionDoc.id,
@@ -173,6 +184,15 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
             };
           })
         );
+        
+        // Sort collections by creation date on the client
+        collectionsData.sort((a, b) => {
+            if (a.createdAt && b.createdAt) {
+                return b.createdAt.toMillis() - a.createdAt.toMillis();
+            }
+            return 0;
+        });
+
         setCollections(collectionsData);
         setLoading(false);
       },
