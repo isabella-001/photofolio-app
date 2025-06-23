@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PlusCircle, Image as ImageIcon, Wind, Trash2 } from "lucide-react";
+import { PlusCircle, Image as ImageIcon, Wind, Trash2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PhotoUploadPreviewDialog } from "./photo-upload-preview-dialog";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
-import { db, storage } from "@/lib/firebase";
+import { db, storage, isFirebaseConfigured } from "@/lib/firebase";
 import {
   collection,
   query,
@@ -35,6 +35,7 @@ import {
   getDownloadURL,
   deleteObject,
 } from "firebase/storage";
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 
 // Interfaces
 interface Photo {
@@ -73,11 +74,28 @@ export function PhotoFolioApp() {
     title: "",
   });
 
+  if (!isFirebaseConfigured) {
+    return (
+       <div className="flex items-center justify-center min-h-screen">
+        <div className="container mx-auto max-w-2xl p-4 md:p-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Firebase Not Configured</AlertTitle>
+            <AlertDescription>
+              <p className="mb-2">Your app is not connected to a backend, so data cannot be saved.</p>
+              <p>Please create a Firebase project and add your configuration keys to a <strong>.env</strong> file in the root of this project to get started.</p>
+            </AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
+
   // Fetch collections and their photos from Firestore
   useEffect(() => {
     setLoading(true);
     const q = query(
-      collection(db, "collections"),
+      collection(db!, "collections"),
       orderBy("createdAt", "desc")
     );
 
@@ -85,7 +103,7 @@ export function PhotoFolioApp() {
       const collectionsData: Collection[] = await Promise.all(
         querySnapshot.docs.map(async (collectionDoc) => {
           const photosQuery = query(
-            collection(db, `collections/${collectionDoc.id}/photos`),
+            collection(db!, `collections/${collectionDoc.id}/photos`),
             orderBy("createdAt", "desc")
           );
           const photosSnapshot = await getDocs(photosQuery);
@@ -110,7 +128,7 @@ export function PhotoFolioApp() {
 
   const handleCreateCollection = async (title: string) => {
     try {
-      await addDoc(collection(db, "collections"), {
+      await addDoc(collection(db!, "collections"), {
         title,
         createdAt: serverTimestamp(),
       });
@@ -149,7 +167,7 @@ export function PhotoFolioApp() {
         await Promise.all(
           newPhotos.map(async (photo) => {
             const storagePath = `photos/${collectionId}/${crypto.randomUUID()}`;
-            const storageRef = ref(storage, storagePath);
+            const storageRef = ref(storage!, storagePath);
 
             const uploadResult = await uploadString(
               storageRef,
@@ -158,7 +176,7 @@ export function PhotoFolioApp() {
             );
             const downloadURL = await getDownloadURL(uploadResult.ref);
 
-            await addDoc(collection(db, `collections/${collectionId}/photos`), {
+            await addDoc(collection(db!, `collections/${collectionId}/photos`), {
               src: downloadURL,
               title: photo.title,
               storagePath: storagePath,
@@ -262,7 +280,7 @@ export function PhotoFolioApp() {
       try {
         const collectionId = dialogState.id;
         const photosQuery = query(
-          collection(db, `collections/${collectionId}/photos`)
+          collection(db!, `collections/${collectionId}/photos`)
         );
         const photosSnapshot = await getDocs(photosQuery);
 
@@ -270,16 +288,16 @@ export function PhotoFolioApp() {
           photosSnapshot.docs.map(async (photoDoc) => {
             const photoData = photoDoc.data();
             if (photoData.storagePath) {
-              const storageRef = ref(storage, photoData.storagePath);
+              const storageRef = ref(storage!, photoData.storagePath);
               await deleteObject(storageRef);
             }
             await deleteDoc(
-              doc(db, `collections/${collectionId}/photos`, photoDoc.id)
+              doc(db!, `collections/${collectionId}/photos`, photoDoc.id)
             );
           })
         );
 
-        await deleteDoc(doc(db, "collections", collectionId));
+        await deleteDoc(doc(db!, "collections", collectionId));
 
         toast({
           title: "Collection deleted",
@@ -299,11 +317,11 @@ export function PhotoFolioApp() {
       const { collectionId, storagePath } = dialogState.meta;
       try {
         await deleteDoc(
-          doc(db, `collections/${collectionId}/photos`, dialogState.id)
+          doc(db!, `collections/${collectionId}/photos`, dialogState.id)
         );
 
         if (storagePath) {
-          const storageRef = ref(storage, storagePath);
+          const storageRef = ref(storage!, storagePath);
           await deleteObject(storageRef);
         }
 
