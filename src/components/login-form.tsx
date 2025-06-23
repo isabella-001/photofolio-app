@@ -15,40 +15,43 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Users } from "lucide-react";
-import { getUsers } from "@/lib/user-store";
+import { Loader2, Users } from "lucide-react";
+import { validateUser } from "@/lib/user-store";
 
 export function LoginForm() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const users = getUsers();
-    const user = users.find(
-      (u) => u.name.toLowerCase() === name.toLowerCase() && u.password === password
-    );
+    setError("");
+    setIsSubmitting(true);
+    
+    try {
+      const user = await validateUser(name, password);
 
-    if (user) {
-      setError("");
-      try {
+      if (user) {
         localStorage.setItem("isAuthenticated", "true");
         localStorage.setItem("currentUser", JSON.stringify({ name: user.name }));
         router.push("/folio");
-      } catch (e) {
-        console.error("Couldn't use localStorage", e);
-        toast({
-          title: "Login failed",
-          description:
-            "Could not save authentication state. Please enable cookies/localStorage.",
-          variant: "destructive",
-        });
+      } else {
+        setError("Invalid name or password. Please try again.");
       }
-    } else {
-      setError("Invalid name or password. Please try again.");
+    } catch (err) {
+       console.error("Login failed:", err);
+       const message = err instanceof Error ? err.message : "An unexpected error occurred.";
+       setError(`Login failed: ${message}`);
+       toast({
+         title: "Login Failed",
+         description: message,
+         variant: "destructive",
+       });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -76,6 +79,7 @@ export function LoginForm() {
                   onChange={(e) => setName(e.target.value)}
                   required
                   autoComplete="username"
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="flex flex-col space-y-1.5">
@@ -88,6 +92,7 @@ export function LoginForm() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
+                  disabled={isSubmitting}
                 />
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
@@ -97,9 +102,10 @@ export function LoginForm() {
             <Button
               type="submit"
               className="w-full"
-              disabled={!name || !password}
+              disabled={!name || !password || isSubmitting}
             >
-              Login
+              {isSubmitting && <Loader2 className="mr-2 animate-spin" />}
+              {isSubmitting ? "Logging in..." : "Login"}
             </Button>
             <p className="text-sm text-muted-foreground">
               Don&apos;t have an account?{" "}

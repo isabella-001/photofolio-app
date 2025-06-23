@@ -15,17 +15,18 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus } from "lucide-react";
+import { Loader2, UserPlus } from "lucide-react";
 import { addUser } from "@/lib/user-store";
 
 export function SignupForm() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -33,17 +34,31 @@ export function SignupForm() {
       setError("Password must be at least 6 characters long.");
       return;
     }
+    
+    setIsSubmitting(true);
+    try {
+      const result = await addUser({ name, password });
 
-    const result = addUser({ name, password });
-
-    if (result.success) {
-      toast({
-        title: "Signup Successful",
-        description: "You can now log in with your new account.",
-      });
-      router.push("/login");
-    } else {
-      setError(result.message);
+      if (result.success) {
+        toast({
+          title: "Signup Successful",
+          description: "You can now log in with your new account.",
+        });
+        router.push("/login");
+      } else {
+        setError(result.message);
+      }
+    } catch (err) {
+       console.error("Signup failed:", err);
+       const message = err instanceof Error ? err.message : "An unexpected error occurred.";
+       setError(`Signup failed: ${message}`);
+       toast({
+         title: "Signup Failed",
+         description: "Could not connect to the database. Please check your connection and try again.",
+         variant: "destructive",
+       });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -71,6 +86,7 @@ export function SignupForm() {
                   onChange={(e) => setName(e.target.value)}
                   required
                   autoComplete="username"
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="flex flex-col space-y-1.5">
@@ -83,6 +99,7 @@ export function SignupForm() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="new-password"
+                  disabled={isSubmitting}
                 />
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
@@ -92,9 +109,10 @@ export function SignupForm() {
             <Button
               type="submit"
               className="w-full"
-              disabled={!name || !password}
+              disabled={!name || !password || isSubmitting}
             >
-              Sign Up
+              {isSubmitting && <Loader2 className="mr-2 animate-spin" />}
+              {isSubmitting ? "Signing up..." : "Sign Up"}
             </Button>
              <p className="text-sm text-muted-foreground">
               Already have an account?{" "}

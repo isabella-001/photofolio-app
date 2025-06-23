@@ -13,7 +13,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { getUsers, removeUser, User } from "@/lib/user-store";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
-import { Trash2, User as UserIcon } from "lucide-react";
+import { Trash2, User as UserIcon, Loader2 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -38,14 +38,32 @@ export function ManageUsersDialog({
   handleLogout,
 }: ManageUsersDialogProps) {
   const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
-      setUsers(getUsers());
+      const fetchUsers = async () => {
+        setIsLoading(true);
+        try {
+          const userList = await getUsers();
+          setUsers(userList);
+        } catch (error) {
+          console.error("Failed to fetch users:", error);
+          toast({
+            title: "Error",
+            description: "Could not fetch the list of users.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchUsers();
     }
-  }, [open]);
+  }, [open, toast]);
 
   const handleConfirmDelete = async () => {
     if (!userToDelete || !db) return;
@@ -60,6 +78,7 @@ export function ManageUsersDialog({
       return;
     }
 
+    setIsDeleting(true);
     toast({
       title: "Removing User...",
       description: `Please wait while we remove ${userToDelete.name} and all their data.`,
@@ -78,13 +97,11 @@ export function ManageUsersDialog({
       for (const collectionDoc of collectionsSnapshot.docs) {
         const collectionId = collectionDoc.id;
 
-        // 2a. Get all photos in the subcollection
         const photosQuery = query(
           collection(db, `collections/${collectionId}/photos`)
         );
         const photosSnapshot = await getDocs(photosQuery);
         
-        // 2b. Sequentially delete photo documents and collect their URLs
         for (const photoDoc of photosSnapshot.docs) {
            const photoData = photoDoc.data();
            if (photoData.src) {
@@ -93,7 +110,6 @@ export function ManageUsersDialog({
            await deleteDoc(doc(db, `collections/${collectionId}/photos`, photoDoc.id));
         }
 
-        // 2c. Delete the collection document itself
         await deleteDoc(doc(db, "collections", collectionId));
       }
 
@@ -105,18 +121,12 @@ export function ManageUsersDialog({
           body: JSON.stringify({ urls: photoUrlsToDelete }),
         });
         if (!response.ok) {
-          // Don't throw, just log it. The user/data is already gone from DB.
           console.error("Failed to delete some images from blob storage.");
-          toast({
-            title: "Partial Failure",
-            description: "Could not delete all images from storage, but user data was removed.",
-            variant: "destructive"
-          });
         }
       }
 
-      // 4. Remove the user from the local user store
-      removeUser(userToDelete.name);
+      // 4. Remove the user from the users collection in Firestore
+      await removeUser(userToDelete.name);
 
       toast({
         title: "User Removed",
@@ -127,7 +137,8 @@ export function ManageUsersDialog({
       if (userToDelete.name === currentUser) {
         handleLogout();
       } else {
-        setUsers(getUsers());
+        const updatedUsers = await getUsers();
+        setUsers(updatedUsers);
       }
     } catch (error) {
       console.error("Error removing user and their data:", error);
@@ -138,13 +149,14 @@ export function ManageUsersDialog({
       });
     } finally {
       setUserToDelete(null);
+      setIsDeleting(false);
     }
   };
 
   return (
     <>
       <DeleteConfirmationDialog
-        open={!!userToDelete}
+        open={!!userToDelete && !isDeleting}
         onOpenChange={(isOpen) => !isOpen && setUserToDelete(null)}
         onConfirm={handleConfirmDelete}
         title="Delete User"
@@ -156,31 +168,38 @@ export function ManageUsersDialog({
             <DialogTitle>Manage Users</DialogTitle>
             <DialogDescription>
               Remove users and all of their associated data from the
-              application.
+              application. This action is permanent.
             </DialogDescription>
           </DialogHeader>
           <div className="mt-4 space-y-2 max-h-80 overflow-y-auto">
-            {users.map((user) => (
-              <div
-                key={user.name}
-                className="flex items-center justify-between p-2 rounded-md border"
-              >
-                <div className="flex items-center gap-2">
-                  <UserIcon className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-medium">{user.name}</span>
-                </div>
-                {user.name.toLowerCase() !== 'star' && (
-                    <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => setUserToDelete(user)}
-                    >
-                    <Trash2 className="h-4 w-4" />
-                    </Button>
-                )}
+            {isLoading ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ))}
+            ) : (
+                users.map((user) => (
+                <div
+                    key={user.id}
+                    className="flex items-center justify-between p-2 rounded-md border"
+                >
+                    <div className="flex items-center gap-2">
+                    <UserIcon className="h-5 w-5 text-muted-foreground" />
+                    <span className="font-medium">{user.name}</span>
+                    </div>
+                    {user.name.toLowerCase() !== 'star' && (
+                        <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => setUserToDelete(user)}
+                        disabled={isDeleting}
+                        >
+                        <Trash2 className="h-4 w-4" />
+                        </Button>
+                    )}
+                </div>
+                ))
+            )}
           </div>
         </DialogContent>
       </Dialog>
