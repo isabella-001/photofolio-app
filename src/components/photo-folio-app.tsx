@@ -77,8 +77,14 @@ export function PhotoFolioApp() {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Firebase Not Configured</AlertTitle>
             <AlertDescription>
-              <p className="mb-2">Your app is not connected to a backend, so data cannot be saved.</p>
-              <p>Please create a Firebase project and add your configuration keys to a <strong>.env</strong> file in the root of this project to get started.</p>
+                <p className="mb-2">Your app is not connected to a Firebase backend, so data cannot be saved.</p>
+                <p className="font-semibold mt-4">To fix this for deployment:</p>
+                <ol className="list-decimal list-inside space-y-1 mt-1">
+                    <li>Go to your project settings on the Vercel dashboard.</li>
+                    <li>Navigate to the "Environment Variables" section.</li>
+                    <li>Add all the `NEXT_PUBLIC_FIREBASE_*` variables from your local `.env` file.</li>
+                </ol>
+                <p className="mt-3">After adding the variables, you must redeploy your project for the changes to take effect.</p>
             </AlertDescription>
           </Alert>
         </div>
