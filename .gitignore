@@ -1,34 +1,25 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# Local Environment Variables
+# Exclude all .env files to protect sensitive data
+.env*
+!.env.example
+
+# Dependencies
 /node_modules
-/.pnpm
-/pnpm-lock.yaml
 
-# misc
-.DS_Store
-*.pem
+# Next.js build output
+/.next/
+/out/
 
-# debug
+# Vercel
+.vercel
+
+# Log files
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# local env files
-.env
-.env*.local
-
-# vercel
-.vercel
-
-# next.js
-/.next/
-/out/
-
-# turbo
-.turbo
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# System files
+.DS_Store
