@@ -17,12 +17,32 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PhotoUploadPreviewDialog } from "./photo-upload-preview-dialog";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
+import { db, storage } from "@/lib/firebase";
+import {
+  collection,
+  query,
+  onSnapshot,
+  orderBy,
+  addDoc,
+  serverTimestamp,
+  deleteDoc,
+  doc,
+  getDocs,
+} from "firebase/firestore";
+import {
+  ref,
+  uploadString,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
 
+// Interfaces
 interface Photo {
   id: string;
   src: string;
   title: string;
   hint?: string;
+  storagePath: string;
 }
 
 interface Collection {
@@ -33,9 +53,9 @@ interface Collection {
 
 export function PhotoFolioApp() {
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
-  const [isMounted, setIsMounted] = useState(false);
   const [filesToPreview, setFilesToPreview] = useState<File[]>([]);
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(
     null
@@ -45,6 +65,7 @@ export function PhotoFolioApp() {
     type: "photo" | "collection" | null;
     id: string | null;
     title: string;
+    meta?: any;
   }>({
     open: false,
     type: null,
@@ -52,56 +73,59 @@ export function PhotoFolioApp() {
     title: "",
   });
 
+  // Fetch collections and their photos from Firestore
   useEffect(() => {
-    setCollections([
-      {
-        id: "landscapes-1",
-        title: "Landscapes",
-        photos: [
-          {
-            id: "p1",
-            src: "https://placehold.co/800x600.png",
-            title: "Misty Mountains",
-            hint: "mountain landscape",
-          },
-          {
-            id: "p2",
-            src: "https://placehold.co/600x800.png",
-            title: "Ocean's Expanse",
-            hint: "ocean sunset",
-          },
-          {
-            id: "p3",
-            src: "https://placehold.co/600x600.png",
-            title: "Forest Trail",
-            hint: "forest path",
-          },
-        ],
-      },
-      {
-        id: "portraits-1",
-        title: "Portraits",
-        photos: [
-          {
-            id: "p4",
-            src: "https://placehold.co/600x900.png",
-            title: "Joyful Smile",
-            hint: "woman smiling",
-          },
-        ],
-      },
-      { id: "urban-1", title: "Urban Exploration", photos: [] },
-    ]);
-    setIsMounted(true);
+    setLoading(true);
+    const q = query(
+      collection(db, "collections"),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+      const collectionsData: Collection[] = await Promise.all(
+        querySnapshot.docs.map(async (collectionDoc) => {
+          const photosQuery = query(
+            collection(db, `collections/${collectionDoc.id}/photos`),
+            orderBy("createdAt", "desc")
+          );
+          const photosSnapshot = await getDocs(photosQuery);
+          const photos = photosSnapshot.docs.map((photoDoc) => ({
+            id: photoDoc.id,
+            ...(photoDoc.data() as Omit<Photo, 'id'>),
+          }));
+
+          return {
+            id: collectionDoc.id,
+            title: collectionDoc.data().title,
+            photos,
+          };
+        })
+      );
+      setCollections(collectionsData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const handleCreateCollection = (title: string) => {
-    const newCollection: Collection = {
-      id: crypto.randomUUID(),
-      title,
-      photos: [],
-    };
-    setCollections((prev) => [newCollection, ...prev]);
+  const handleCreateCollection = async (title: string) => {
+    try {
+      await addDoc(collection(db, "collections"), {
+        title,
+        createdAt: serverTimestamp(),
+      });
+      toast({
+        title: "Collection created!",
+        description: `Successfully created the "${title}" collection.`,
+      });
+    } catch (error) {
+      console.error("Error creating collection: ", error);
+      toast({
+        title: "Error",
+        description: "Could not create the collection. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleInitiateUpload = (collectionId: string, files: File[]) => {
@@ -110,24 +134,52 @@ export function PhotoFolioApp() {
   };
 
   const handleAddImagesToCollection = useCallback(
-    (collectionId: string, newPhotos: { src: string; title: string }[]) => {
+    async (
+      collectionId: string,
+      newPhotos: { src: string; title: string }[]
+    ) => {
       if (!collectionId) return;
 
-      const photosToAdd: Photo[] = newPhotos.map((p) => ({
-        id: crypto.randomUUID(),
-        src: p.src,
-        title: p.title,
-      }));
+      toast({
+        title: "Uploading...",
+        description: `Adding ${newPhotos.length} photo(s). Please wait.`,
+      });
 
-      setCollections((prev) =>
-        prev.map((c) =>
-          c.id === collectionId
-            ? { ...c, photos: [...photosToAdd, ...c.photos] }
-            : c
-        )
-      );
+      try {
+        await Promise.all(
+          newPhotos.map(async (photo) => {
+            const storagePath = `photos/${collectionId}/${crypto.randomUUID()}`;
+            const storageRef = ref(storage, storagePath);
+
+            const uploadResult = await uploadString(
+              storageRef,
+              photo.src,
+              "data_url"
+            );
+            const downloadURL = await getDownloadURL(uploadResult.ref);
+
+            await addDoc(collection(db, `collections/${collectionId}/photos`), {
+              src: downloadURL,
+              title: photo.title,
+              storagePath: storagePath,
+              createdAt: serverTimestamp(),
+            });
+          })
+        );
+        toast({
+          title: "Upload complete!",
+          description: `${newPhotos.length} photo(s) added successfully.`,
+        });
+      } catch (error) {
+        console.error("Error adding images: ", error);
+        toast({
+          title: "Upload failed",
+          description: "Could not save the images. Please try again.",
+          variant: "destructive",
+        });
+      }
     },
-    []
+    [toast]
   );
 
   const handlePaste = useCallback(
@@ -149,12 +201,20 @@ export function PhotoFolioApp() {
 
       if (imageFiles.length > 0) {
         event.preventDefault();
+        // Default to the first (most recent) collection
         setActiveCollectionId(collections[0].id);
         setFilesToPreview(imageFiles);
       }
     },
     [collections, toast]
   );
+
+  useEffect(() => {
+    document.addEventListener("paste", handlePaste);
+    return () => {
+      document.removeEventListener("paste", handlePaste);
+    };
+  }, [handlePaste]);
 
   const handleDeleteCollection = (
     collectionId: string,
@@ -169,57 +229,102 @@ export function PhotoFolioApp() {
   };
 
   const handleDeletePhoto = (photoId: string) => {
-    let photoTitle = "";
+    let photoToDelete: Photo | undefined;
+    let collectionIdOfPhoto: string | undefined;
+
     for (const collection of collections) {
       const photo = collection.photos.find((p) => p.id === photoId);
       if (photo) {
-        photoTitle = photo.title;
+        photoToDelete = photo;
+        collectionIdOfPhoto = collection.id;
         break;
       }
     }
-    setDialogState({
-      open: true,
-      type: "photo",
-      id: photoId,
-      title: photoTitle,
-    });
+
+    if (photoToDelete && collectionIdOfPhoto) {
+      setDialogState({
+        open: true,
+        type: "photo",
+        id: photoId,
+        title: photoToDelete.title,
+        meta: {
+          collectionId: collectionIdOfPhoto,
+          storagePath: photoToDelete.storagePath,
+        },
+      });
+    }
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!dialogState.id || !dialogState.type) return;
 
     if (dialogState.type === "collection") {
-      setCollections((prev) => prev.filter((c) => c.id !== dialogState.id));
-      toast({
-        title: "Collection deleted",
-        description: `The collection "${dialogState.title}" has been removed.`,
-      });
+      try {
+        const collectionId = dialogState.id;
+        const photosQuery = query(
+          collection(db, `collections/${collectionId}/photos`)
+        );
+        const photosSnapshot = await getDocs(photosQuery);
+
+        await Promise.all(
+          photosSnapshot.docs.map(async (photoDoc) => {
+            const photoData = photoDoc.data();
+            if (photoData.storagePath) {
+              const storageRef = ref(storage, photoData.storagePath);
+              await deleteObject(storageRef);
+            }
+            await deleteDoc(
+              doc(db, `collections/${collectionId}/photos`, photoDoc.id)
+            );
+          })
+        );
+
+        await deleteDoc(doc(db, "collections", collectionId));
+
+        toast({
+          title: "Collection deleted",
+          description: `The collection "${dialogState.title}" has been removed.`,
+        });
+      } catch (error) {
+        console.error("Error deleting collection: ", error);
+        toast({
+          title: "Error",
+          description: "Failed to delete collection.",
+          variant: "destructive",
+        });
+      }
     }
 
     if (dialogState.type === "photo") {
-      setCollections((prev) =>
-        prev.map((c) => ({
-          ...c,
-          photos: c.photos.filter((p) => p.id !== dialogState.id),
-        }))
-      );
-      toast({
-        title: "Photo deleted",
-        description: `The photo "${dialogState.title}" has been removed.`,
-      });
+      const { collectionId, storagePath } = dialogState.meta;
+      try {
+        await deleteDoc(
+          doc(db, `collections/${collectionId}/photos`, dialogState.id)
+        );
+
+        if (storagePath) {
+          const storageRef = ref(storage, storagePath);
+          await deleteObject(storageRef);
+        }
+
+        toast({
+          title: "Photo deleted",
+          description: `The photo "${dialogState.title}" has been removed.`,
+        });
+      } catch (error) {
+        console.error("Error deleting photo: ", error);
+        toast({
+          title: "Error",
+          description: "Failed to delete photo.",
+          variant: "destructive",
+        });
+      }
     }
 
     setDialogState({ open: false, type: null, id: null, title: "" });
   };
 
-  useEffect(() => {
-    document.addEventListener("paste", handlePaste);
-    return () => {
-      document.removeEventListener("paste", handlePaste);
-    };
-  }, [handlePaste]);
-
-  if (!isMounted) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <header className="sticky top-0 z-10 w-full bg-background/80 backdrop-blur-md border-b">

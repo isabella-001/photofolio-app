@@ -34,7 +34,6 @@ export function PhotoGrid({ images, onDelete }: PhotoGridProps) {
             width={400}
             height={400}
             className="w-full h-auto object-cover"
-            unoptimized
             sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 16.6vw"
             data-ai-hint={image.hint || "gallery photo"}
           />
