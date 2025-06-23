@@ -10,7 +10,8 @@ import {
   deleteDoc,
   doc,
   DocumentData,
-  limit
+  limit,
+  updateDoc
 } from "firebase/firestore";
 
 export interface User {
@@ -110,42 +111,94 @@ export async function addUser(newUser: Omit<User, 'id'>): Promise<{ success: boo
         return { success: false, message: 'Name and password are required.' };
     }
 
-    const usersCollection = collection(db, "users");
-    const q = query(usersCollection, where("name", "==", newUser.name.toLowerCase()));
-    const querySnapshot = await getDocs(q);
+    try {
+        const usersCollection = collection(db, "users");
+        const q = query(usersCollection, where("name", "==", newUser.name.toLowerCase()));
+        const querySnapshot = await getDocs(q);
 
-    if (!querySnapshot.empty) {
-        return { success: false, message: 'A user with this name already exists.' };
+        if (!querySnapshot.empty) {
+            return { success: false, message: 'A user with this name already exists.' };
+        }
+        
+        await addDoc(collection(db, "users"), {
+            name: newUser.name.toLowerCase(),
+            password: newUser.password
+        });
+
+        return { success: true, message: 'Signup successful!' };
+    } catch (error) {
+        console.error("Error adding user:", error);
+        return { success: false, message: "A database error occurred while adding the user." };
     }
-    
-    await addDoc(collection(db, "users"), {
-        name: newUser.name.toLowerCase(),
-        password: newUser.password
-    });
-
-    return { success: true, message: 'Signup successful!' };
 }
 
 /**
  * Removes a user from Firestore by name.
  */
-export async function removeUser(name: string): Promise<{ success: boolean }> {
-    if (!db) return { success: false };
+export async function removeUser(name: string): Promise<{ success: boolean; message?: string }> {
+    if (!db) return { success: false, message: "Database connection not available." };
     if (name.toLowerCase() === 'star') {
         console.warn("Attempted to remove the protected 'star' user.");
-        return { success: false };
+        return { success: false, message: "The 'star' user cannot be removed." };
     }
 
+    try {
+        const usersCollection = collection(db, "users");
+        const q = query(usersCollection, where("name", "==", name.toLowerCase()));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            return { success: false, message: "User not found." };
+        }
+
+        const userDocRef = doc(db, "users", querySnapshot.docs[0].id);
+        await deleteDoc(userDocRef);
+        
+        return { success: true };
+    } catch (error) {
+        console.error("Error removing user:", error);
+        return { success: false, message: "A database error occurred while removing the user." };
+    }
+}
+
+
+/**
+ * Updates a user's password in Firestore.
+ */
+export async function updateUserPassword(
+  name: string,
+  oldPassword: string,
+  newPassword: string
+): Promise<{ success: boolean; message: string }> {
+  if (!db) {
+    return { success: false, message: "Database connection not available." };
+  }
+
+  try {
     const usersCollection = collection(db, "users");
     const q = query(usersCollection, where("name", "==", name.toLowerCase()));
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
-        return { success: false }; // User not found
+      return { success: false, message: "User not found." };
     }
 
-    const userDocRef = doc(db, "users", querySnapshot.docs[0].id);
-    await deleteDoc(userDocRef);
-    
-    return { success: true };
+    const userDoc = querySnapshot.docs[0];
+    const userData = userDoc.data();
+
+    if (userData.password !== oldPassword) {
+      return { success: false, message: "Incorrect current password." };
+    }
+
+    const userDocRef = doc(db, "users", userDoc.id);
+    await updateDoc(userDocRef, { password: newPassword });
+
+    return { success: true, message: "Password updated successfully." };
+  } catch (error) {
+    console.error("Error updating password:", error);
+    return {
+      success: false,
+      message: "An error occurred while updating the password.",
+    };
+  }
 }

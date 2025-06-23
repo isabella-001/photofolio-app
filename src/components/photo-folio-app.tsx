@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { PlusCircle, Image as ImageIcon, Wind, Trash2, AlertCircle, LogOut, Users, Pencil } from "lucide-react";
+import { PlusCircle, Image as ImageIcon, Wind, Trash2, AlertCircle, LogOut, Users, Pencil, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,7 +24,6 @@ import {
   collection,
   query,
   onSnapshot,
-  orderBy,
   addDoc,
   serverTimestamp,
   deleteDoc,
@@ -41,6 +40,7 @@ import { ManageUsersDialog } from "./manage-users-dialog";
 import { EditCollectionDialog } from "./edit-collection-dialog";
 import { EditPhotoTitleDialog } from "./edit-photo-title-dialog";
 import { LightboxDialog } from "./lightbox-dialog";
+import { ChangePasswordDialog } from "./change-password-dialog";
 
 // Interfaces
 interface Photo {
@@ -65,6 +65,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
   const [loading, setLoading] = useState(true);
   const [isCreateCollectionOpen, setIsCreateCollectionOpen] = useState(false);
   const [isManageUsersOpen, setIsManageUsersOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const { toast } = useToast();
   const [filesToPreview, setFilesToPreview] = useState<File[]>([]);
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(
@@ -550,6 +551,11 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
         currentUser={userName}
         handleLogout={handleLogout}
       />
+      <ChangePasswordDialog
+        open={isChangePasswordOpen}
+        onOpenChange={setIsChangePasswordOpen}
+        userName={userName}
+      />
       <EditCollectionDialog
         open={!!editingCollection}
         onOpenChange={(isOpen) => !isOpen && setEditingCollection(null)}
@@ -583,6 +589,10 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
                 New Collection
               </Button>
               <ThemeToggle />
+              <Button variant="outline" size="icon" onClick={() => setIsChangePasswordOpen(true)} title="Change Password">
+                  <Key className="h-4 w-4" />
+                  <span className="sr-only">Change Password</span>
+              </Button>
               {userName.toLowerCase() === 'star' && (
                 <Button variant="outline" size="icon" onClick={() => setIsManageUsersOpen(true)} title="Manage Users">
                   <Users className="h-4 w-4" />

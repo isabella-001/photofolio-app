@@ -126,7 +126,11 @@ export function ManageUsersDialog({
       }
 
       // 4. Remove the user from the users collection in Firestore
-      await removeUser(userToDelete.name);
+      const removalResult = await removeUser(userToDelete.name);
+      if (!removalResult.success) {
+        throw new Error(removalResult.message || "Failed to remove user account from database.");
+      }
+
 
       toast({
         title: "User Removed",
@@ -142,9 +146,10 @@ export function ManageUsersDialog({
       }
     } catch (error) {
       console.error("Error removing user and their data:", error);
+      const message = error instanceof Error ? error.message : "Could not remove the user and their data. Please try again.";
       toast({
         title: "Error",
-        description: "Could not remove the user and their data. Please try again.",
+        description: message,
         variant: "destructive",
       });
     } finally {
