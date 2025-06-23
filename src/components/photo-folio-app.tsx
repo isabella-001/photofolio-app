@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -18,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PhotoUploadPreviewDialog } from "./photo-upload-preview-dialog";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import {
   collection,
   query,
@@ -86,22 +87,22 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
     }
   };
 
-  if (!isFirebaseConfigured) {
+  if (!db) {
     return (
        <div className="flex items-center justify-center min-h-screen">
         <div className="container mx-auto max-w-2xl p-4 md:p-6">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Firebase Not Configured</AlertTitle>
+            <AlertTitle>Firebase Not Configured or Invalid</AlertTitle>
             <AlertDescription>
-                <p className="mb-2">Your app is not connected to a Firebase backend, so data cannot be saved.</p>
+                <p className="mb-2">Your app is not connected to a Firebase backend, so data cannot be saved. This can happen if your Firebase configuration is missing or incorrect.</p>
                 <p className="font-semibold mt-4">To fix this for deployment:</p>
                 <ol className="list-decimal list-inside space-y-1 mt-1">
                     <li>Go to your project settings on the Vercel dashboard.</li>
                     <li>Navigate to the "Environment Variables" section.</li>
-                    <li>Add all the `NEXT_PUBLIC_FIREBASE_*` variables from your local `.env` file.</li>
+                    <li>Ensure all the `NEXT_PUBLIC_FIREBASE_*` variables from your local `.env` file are present and have the correct values.</li>
                 </ol>
-                <p className="mt-3">After adding the variables, you must redeploy your project for the changes to take effect.</p>
+                <p className="mt-3">After adding or correcting the variables, you must redeploy your project for the changes to take effect.</p>
             </AlertDescription>
           </Alert>
         </div>
@@ -113,7 +114,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
   useEffect(() => {
     setLoading(true);
     const q = query(
-      collection(db!, "collections"),
+      collection(db, "collections"),
       orderBy("createdAt", "desc")
     );
 
@@ -121,7 +122,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
       const collectionsData: Collection[] = await Promise.all(
         querySnapshot.docs.map(async (collectionDoc) => {
           const photosQuery = query(
-            collection(db!, `collections/${collectionDoc.id}/photos`),
+            collection(db, `collections/${collectionDoc.id}/photos`),
             orderBy("createdAt", "desc")
           );
           const photosSnapshot = await getDocs(photosQuery);
@@ -146,7 +147,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
 
   const handleCreateCollection = async (title: string) => {
     try {
-      await addDoc(collection(db!, "collections"), {
+      await addDoc(collection(db, "collections"), {
         title,
         createdAt: serverTimestamp(),
       });
@@ -184,7 +185,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
       try {
         await Promise.all(
           newPhotos.map((photo) => {
-            return addDoc(collection(db!, `collections/${collectionId}/photos`), {
+            return addDoc(collection(db, `collections/${collectionId}/photos`), {
               src: photo.src, // This is now the Vercel Blob URL
               title: photo.title,
               createdAt: serverTimestamp(),
@@ -303,12 +304,12 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
         // Delete photo documents from Firestore
         await Promise.all(
           photosToDelete.map(photo => 
-            deleteDoc(doc(db!, `collections/${collectionId}/photos`, photo.id))
+            deleteDoc(doc(db, `collections/${collectionId}/photos`, photo.id))
           )
         );
 
         // Delete collection document from Firestore
-        await deleteDoc(doc(db!, "collections", collectionId));
+        await deleteDoc(doc(db, "collections", collectionId));
 
         toast({
           title: "Collection deleted",
@@ -336,7 +337,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
         
         // Delete from Firestore
         await deleteDoc(
-          doc(db!, `collections/${collectionId}/photos`, dialogState.id!)
+          doc(db, `collections/${collectionId}/photos`, dialogState.id!)
         );
 
         toast({
