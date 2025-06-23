@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { generateTitle } from "@/ai/flows/generate-title-flow";
 import { Loader2 } from "lucide-react";
 import { ScrollArea } from "./ui/scroll-area";
+import { upload } from '@vercel/blob/client';
 
 interface PhotoPreview {
   file: File;
@@ -74,43 +75,52 @@ export function PhotoUploadPreviewDialog({
 
   const handleConfirm = async () => {
     setIsProcessing(true);
+    toast({
+        title: "Uploading...",
+        description: `Processing ${previews.length} photo(s). Please wait.`,
+    });
+    
     try {
-      const photosWithTitles = await Promise.all(
-        previews.map(async (p) => {
-          let finalTitle = p.title.trim();
-          if (!finalTitle) {
-            try {
-              const dataUri = await fileToDataUri(p.file);
-              const result = await generateTitle({ photoDataUri: dataUri });
-              finalTitle = result.title;
-            } catch (error) {
-              console.error("Failed to generate title:", error);
-              finalTitle = `Untitled Photo ${Date.now()}`;
-              toast({
-                title: "Couldn't generate title for an image",
-                description: "Using a fallback title.",
-                variant: "destructive",
-              });
-            }
-          }
-          return { ...p, title: finalTitle };
-        })
-      );
+        const photosToUpload = await Promise.all(
+            previews.map(async (p) => {
+              let finalTitle = p.title.trim();
+              if (!finalTitle) {
+                try {
+                  const dataUri = await fileToDataUri(p.file);
+                  const result = await generateTitle({ photoDataUri: dataUri });
+                  finalTitle = result.title;
+                } catch (error) {
+                  console.error("Failed to generate title:", error);
+                  finalTitle = p.file.name; // Fallback to filename
+                  toast({
+                    title: "Couldn't generate title for an image",
+                    description: "Using the filename as a fallback.",
+                    variant: "destructive",
+                  });
+                }
+              }
+              return { file: p.file, title: finalTitle };
+            })
+        );
 
-      const dataUriPhotos = await Promise.all(
-        photosWithTitles.map(async (p) => ({
-          src: await fileToDataUri(p.file),
-          title: p.title,
-        }))
-      );
-
-      onConfirm(dataUriPhotos);
+        const uploadedPhotos = await Promise.all(
+            photosToUpload.map(async (p) => {
+                const blob = await upload(p.file.name, p.file, {
+                    access: 'public',
+                    handleUploadUrl: '/api/upload',
+                });
+                return { src: blob.url, title: p.title };
+            })
+        );
+      
+      onConfirm(uploadedPhotos);
       onOpenChange(false);
+
     } catch (error) {
-      console.error("Error during confirmation:", error);
+      console.error("Error during upload:", error);
       toast({
         title: "An error occurred",
-        description: "Could not prepare photos for upload. Please try again.",
+        description: "Could not upload photos. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -167,7 +177,7 @@ export function PhotoUploadPreviewDialog({
               <Loader2 className="animate-spin mr-2" />
             ) : null}
             {isProcessing
-              ? "Processing..."
+              ? "Uploading..."
               : `Add ${previews.length} Photo(s)`}
           </Button>
         </DialogFooter>

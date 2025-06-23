@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PhotoUploadPreviewDialog } from "./photo-upload-preview-dialog";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
-import { db, storage, isFirebaseConfigured } from "@/lib/firebase";
+import { db, isFirebaseConfigured } from "@/lib/firebase";
 import {
   collection,
   query,
@@ -29,12 +29,8 @@ import {
   doc,
   getDocs,
 } from "firebase/firestore";
-import {
-  ref,
-  uploadString,
-  getDownloadURL,
-  deleteObject,
-} from "firebase/storage";
+import { del } from '@vercel/blob';
+
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 
 // Interfaces
@@ -43,7 +39,6 @@ interface Photo {
   src: string;
   title: string;
   hint?: string;
-  storagePath: string;
 }
 
 interface Collection {
@@ -159,27 +154,16 @@ export function PhotoFolioApp() {
       if (!collectionId) return;
 
       toast({
-        title: "Uploading...",
-        description: `Adding ${newPhotos.length} photo(s). Please wait.`,
+        title: "Saving to collection...",
+        description: `Adding ${newPhotos.length} photo(s).`,
       });
 
       try {
         await Promise.all(
-          newPhotos.map(async (photo) => {
-            const storagePath = `photos/${collectionId}/${crypto.randomUUID()}`;
-            const storageRef = ref(storage!, storagePath);
-
-            const uploadResult = await uploadString(
-              storageRef,
-              photo.src,
-              "data_url"
-            );
-            const downloadURL = await getDownloadURL(uploadResult.ref);
-
-            await addDoc(collection(db!, `collections/${collectionId}/photos`), {
-              src: downloadURL,
+          newPhotos.map((photo) => {
+            return addDoc(collection(db!, `collections/${collectionId}/photos`), {
+              src: photo.src, // This is now the Vercel Blob URL
               title: photo.title,
-              storagePath: storagePath,
               createdAt: serverTimestamp(),
             });
           })
@@ -192,7 +176,7 @@ export function PhotoFolioApp() {
         console.error("Error adding images: ", error);
         toast({
           title: "Upload failed",
-          description: "Could not save the images. Please try again.",
+          description: "Could not save the images to the collection. Please try again.",
           variant: "destructive",
         });
       }
@@ -238,11 +222,13 @@ export function PhotoFolioApp() {
     collectionId: string,
     collectionTitle: string
   ) => {
+    const collectionToDelete = collections.find(c => c.id === collectionId);
     setDialogState({
       open: true,
       type: "collection",
       id: collectionId,
       title: collectionTitle,
+      meta: { photos: collectionToDelete?.photos || [] }
     });
   };
 
@@ -267,7 +253,7 @@ export function PhotoFolioApp() {
         title: photoToDelete.title,
         meta: {
           collectionId: collectionIdOfPhoto,
-          storagePath: photoToDelete.storagePath,
+          photoUrl: photoToDelete.src,
         },
       });
     }
@@ -277,31 +263,33 @@ export function PhotoFolioApp() {
     if (!dialogState.id || !dialogState.type) return;
 
     if (dialogState.type === "collection") {
+      const { id: collectionId, title, meta } = dialogState;
+      const photosToDelete: Photo[] = meta.photos || [];
+
       try {
-        const collectionId = dialogState.id;
-        const photosQuery = query(
-          collection(db!, `collections/${collectionId}/photos`)
-        );
-        const photosSnapshot = await getDocs(photosQuery);
-
+        // Delete files from Vercel Blob
+        if (photosToDelete.length > 0) {
+          const photoUrls = photosToDelete.map(p => p.src);
+          await fetch('/api/upload', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls: photoUrls }),
+          });
+        }
+        
+        // Delete photo documents from Firestore
         await Promise.all(
-          photosSnapshot.docs.map(async (photoDoc) => {
-            const photoData = photoDoc.data();
-            if (photoData.storagePath) {
-              const storageRef = ref(storage!, photoData.storagePath);
-              await deleteObject(storageRef);
-            }
-            await deleteDoc(
-              doc(db!, `collections/${collectionId}/photos`, photoDoc.id)
-            );
-          })
+          photosToDelete.map(photo => 
+            deleteDoc(doc(db!, `collections/${collectionId}/photos`, photo.id))
+          )
         );
 
+        // Delete collection document from Firestore
         await deleteDoc(doc(db!, "collections", collectionId));
 
         toast({
           title: "Collection deleted",
-          description: `The collection "${dialogState.title}" has been removed.`,
+          description: `The collection "${title}" has been removed.`,
         });
       } catch (error) {
         console.error("Error deleting collection: ", error);
@@ -314,16 +302,19 @@ export function PhotoFolioApp() {
     }
 
     if (dialogState.type === "photo") {
-      const { collectionId, storagePath } = dialogState.meta;
+      const { collectionId, photoUrl } = dialogState.meta;
       try {
+        // Delete from Vercel Blob
+        await fetch('/api/upload', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls: [photoUrl] }),
+        });
+        
+        // Delete from Firestore
         await deleteDoc(
-          doc(db!, `collections/${collectionId}/photos`, dialogState.id)
+          doc(db!, `collections/${collectionId}/photos`, dialogState.id!)
         );
-
-        if (storagePath) {
-          const storageRef = ref(storage!, storagePath);
-          await deleteObject(storageRef);
-        }
 
         toast({
           title: "Photo deleted",
