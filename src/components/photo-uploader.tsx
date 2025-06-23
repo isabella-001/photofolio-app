@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useCallback } from "react";
@@ -58,9 +59,7 @@ export function PhotoUploader({ onUpload }: PhotoUploaderProps) {
   );
 
   const handlePaste = useCallback(
-    (e: React.ClipboardEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
       handleFiles(e.clipboardData.files);
     },
     [handleFiles]
@@ -68,31 +67,36 @@ export function PhotoUploader({ onUpload }: PhotoUploaderProps) {
 
   return (
     <div
-      tabIndex={0}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      onPaste={handlePaste}
       className={cn(
-        "relative flex flex-col items-center justify-center w-full p-8 my-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-ring",
+        "relative flex flex-col items-center justify-center w-full p-8 my-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors duration-300 focus-within:outline-none focus-within:ring-2 focus-within:ring-ring",
         isDragging
           ? "border-primary bg-primary/10"
           : "border-muted-foreground/50 hover:border-primary hover:bg-background/80"
       )}
     >
-      <UploadCloud
-        className={cn(
-          "w-12 h-12 mb-4 text-muted-foreground transition-colors duration-300",
-          isDragging && "text-primary"
-        )}
+      <textarea
+        onPaste={handlePaste}
+        className="absolute inset-0 z-10 w-full h-full p-8 bg-transparent border-none outline-none resize-none opacity-0 cursor-pointer"
+        aria-label="Paste image from clipboard"
       />
-      <p className="text-center text-muted-foreground">
-        <span className="font-semibold text-accent">Drag & Drop</span> your
-        images here
-      </p>
-      <p className="text-xs text-center text-muted-foreground">
-        Or paste from clipboard. On mobile, tap here then hold to paste.
-      </p>
+      <div className="flex flex-col items-center justify-center text-center pointer-events-none">
+        <UploadCloud
+          className={cn(
+            "w-12 h-12 mb-4 text-muted-foreground transition-colors duration-300",
+            isDragging && "text-primary"
+          )}
+        />
+        <p className="text-center text-muted-foreground">
+          <span className="font-semibold text-accent">Drag & Drop</span> your
+          images here
+        </p>
+        <p className="text-xs text-center text-muted-foreground">
+          Or paste from clipboard. On mobile, tap here then hold to paste.
+        </p>
+      </div>
     </div>
   );
 }

@@ -3,8 +3,6 @@ import { NextResponse } from 'next/server';
 import { del } from '@vercel/blob';
  
 export async function POST(request: Request): Promise<NextResponse> {
-  const body = (await request.json()) as HandleUploadBody;
- 
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return NextResponse.json(
       { error: 'The Vercel Blob storage token (BLOB_READ_WRITE_TOKEN) is not set in the Vercel project settings. Please ensure it is configured correctly and redeploy.' },
@@ -13,6 +11,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
+    const body = (await request.json()) as HandleUploadBody;
     const jsonResponse = await handleUpload({
       body,
       request,
@@ -40,8 +39,6 @@ export async function POST(request: Request): Promise<NextResponse> {
 }
 
 export async function DELETE(request: Request): Promise<NextResponse> {
-    const { urls } = (await request.json()) as { urls: string[] };
-
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
         return NextResponse.json(
             { error: 'The Vercel Blob storage token (BLOB_READ_WRITE_TOKEN) is not set in the Vercel project settings.' },
@@ -49,11 +46,13 @@ export async function DELETE(request: Request): Promise<NextResponse> {
         );
     }
 
-    if (!urls || !Array.isArray(urls)) {
-      return NextResponse.json({ error: 'Invalid URL list provided.' }, { status: 400 });
-    }
-
     try {
+      const { urls } = (await request.json()) as { urls: string[] };
+
+      if (!urls || !Array.isArray(urls)) {
+        return NextResponse.json({ error: 'Invalid URL list provided.' }, { status: 400 });
+      }
+
       await del(urls);
       return NextResponse.json({ success: true });
     } catch (error) {
