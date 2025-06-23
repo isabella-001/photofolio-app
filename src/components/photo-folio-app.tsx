@@ -31,6 +31,7 @@ import {
 } from "firebase/firestore";
 
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { ThemeToggle } from "./theme-toggle";
 
 // Interfaces
 interface Photo {
@@ -412,10 +413,13 @@ export function PhotoFolioApp() {
                 PhotoFolio
               </h1>
             </div>
-            <Button onClick={() => setIsDialogOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              New Collection
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setIsDialogOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                New Collection
+              </Button>
+              <ThemeToggle />
+            </div>
           </div>
         </header>
 
