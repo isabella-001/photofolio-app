@@ -14,11 +14,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Lock } from "lucide-react";
+import { Users } from "lucide-react";
 
-const CORRECT_PASSWORD = "57518";
+// In a real application, this would be a database call.
+// Storing users like this is for demonstration purposes only.
+const USERS = [
+  { name: "isabella", password: "password123" },
+  { name: "studio", password: "firebase" },
+];
 
 export function LoginForm() {
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
@@ -26,10 +32,15 @@ export function LoginForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === CORRECT_PASSWORD) {
+    const user = USERS.find(
+      (u) => u.name.toLowerCase() === name.toLowerCase() && u.password === password
+    );
+
+    if (user) {
       setError("");
       try {
         localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("currentUser", JSON.stringify({ name: user.name }));
         router.push("/folio");
       } catch (e) {
         console.error("Couldn't use localStorage", e);
@@ -41,7 +52,7 @@ export function LoginForm() {
         });
       }
     } else {
-      setError("Incorrect password. Please try again.");
+      setError("Invalid name or password. Please try again.");
     }
   };
 
@@ -50,16 +61,28 @@ export function LoginForm() {
       <form onSubmit={handleSubmit}>
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
-            <div className="mx-auto bg-primary rounded-full p-3 w-fit mb-4">
-              <Lock className="h-8 w-8 text-primary-foreground" />
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary">
+              <Users className="h-8 w-8 text-primary-foreground" />
             </div>
             <CardTitle>PhotoFolio Access</CardTitle>
             <CardDescription>
-              Please enter the password to continue.
+              Please enter your name and password.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid w-full items-center gap-4">
+              <div className="flex flex-col space-y-1.5">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="e.g., isabella"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  autoComplete="username"
+                />
+              </div>
               <div className="flex flex-col space-y-1.5">
                 <Label htmlFor="password">Password</Label>
                 <Input
@@ -69,13 +92,18 @@ export function LoginForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                 />
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" disabled={!password}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={!name || !password}
+            >
               Login
             </Button>
           </CardFooter>

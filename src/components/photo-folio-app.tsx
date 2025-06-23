@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PlusCircle, Image as ImageIcon, Wind, Trash2, AlertCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { PlusCircle, Image as ImageIcon, Wind, Trash2, AlertCircle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -47,7 +48,8 @@ interface Collection {
   photos: Photo[];
 }
 
-export function PhotoFolioApp() {
+export function PhotoFolioApp({ userName }: { userName: string }) {
+  const router = useRouter();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -68,6 +70,21 @@ export function PhotoFolioApp() {
     id: null,
     title: "",
   });
+
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('currentUser');
+      router.push('/login');
+    } catch (e) {
+      console.error("Couldn't use localStorage", e);
+      toast({
+        title: "Logout failed",
+        description: "Could not clear authentication state.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (!isFirebaseConfigured) {
     return (
@@ -425,6 +442,10 @@ export function PhotoFolioApp() {
                 New Collection
               </Button>
               <ThemeToggle />
+              <Button variant="outline" size="icon" onClick={handleLogout} title="Logout">
+                <LogOut className="h-4 w-4" />
+                <span className="sr-only">Logout</span>
+              </Button>
             </div>
           </div>
         </header>

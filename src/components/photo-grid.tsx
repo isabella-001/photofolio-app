@@ -12,7 +12,7 @@ type PhotoGridProps = {
 
 export function PhotoGrid({ images, onDelete }: PhotoGridProps) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
       {images.map((image) => (
         <Card
           key={image.id}
@@ -28,15 +28,17 @@ export function PhotoGrid({ images, onDelete }: PhotoGridProps) {
             <span className="sr-only">Delete photo</span>
           </Button>
 
-          <Image
-            src={image.src}
-            alt={image.title}
-            width={400}
-            height={400}
-            className="w-full h-auto object-cover"
-            sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 16.6vw"
-            data-ai-hint={image.hint || "gallery photo"}
-          />
+          <div className="aspect-square w-full relative">
+            <Image
+              src={image.src}
+              alt={image.title}
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              data-ai-hint={image.hint || "gallery photo"}
+            />
+          </div>
+
           <CardContent className="p-3 mt-auto">
             <div className="flex justify-between items-center gap-2">
               <p

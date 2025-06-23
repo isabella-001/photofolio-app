@@ -9,12 +9,18 @@ import { ImageIcon } from 'lucide-react';
 export default function FolioPage() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const authStatus = localStorage.getItem('isAuthenticated') === 'true';
-      setIsAuthenticated(authStatus);
-      if (!authStatus) {
+      const userData = localStorage.getItem('currentUser');
+      
+      if (authStatus && userData) {
+        setIsAuthenticated(true);
+        setUserName(JSON.parse(userData).name);
+      } else {
+        setIsAuthenticated(false);
         router.push('/login');
       }
     } catch (e) {
@@ -24,7 +30,7 @@ export default function FolioPage() {
     }
   }, [router]);
 
-  if (isAuthenticated === null) {
+  if (isAuthenticated === null || (isAuthenticated && !userName)) {
     return (
        <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <ImageIcon className="h-16 w-16 text-primary animate-pulse mb-4" />
@@ -34,8 +40,8 @@ export default function FolioPage() {
   }
 
   if (!isAuthenticated) {
-    return null; // Or a message saying "Redirecting to login..."
+    return null; // Redirecting...
   }
 
-  return <PhotoFolioApp />;
+  return <PhotoFolioApp userName={userName!} />;
 }
