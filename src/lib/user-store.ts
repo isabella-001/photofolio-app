@@ -7,6 +7,7 @@ const USERS_KEY = 'photoFolioUsers';
 const DEFAULT_USERS: User[] = [
   { name: "isabella", password: "password123" },
   { name: "studio", password: "firebase" },
+  { name: "star", password: "supernova" },
 ];
 
 export interface User {
@@ -64,6 +65,10 @@ export function addUser(newUser: User): { success: boolean, message: string } {
 
 export function removeUser(name: string): { success: boolean } {
     if (!isBrowser) {
+        return { success: false };
+    }
+    if (name.toLowerCase() === 'star') {
+        console.warn("Attempted to remove the protected 'star' user.");
         return { success: false };
     }
     let users = getUsers();

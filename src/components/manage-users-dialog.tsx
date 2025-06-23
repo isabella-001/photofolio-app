@@ -50,6 +50,16 @@ export function ManageUsersDialog({
   const handleConfirmDelete = async () => {
     if (!userToDelete || !db) return;
 
+    if (userToDelete.name.toLowerCase() === 'star') {
+      toast({
+        title: "Action Prohibited",
+        description: "The 'star' user cannot be removed.",
+        variant: "destructive",
+      });
+      setUserToDelete(null);
+      return;
+    }
+
     toast({
       title: "Removing User...",
       description: `Please wait while we remove ${userToDelete.name} and all their data.`,
@@ -73,20 +83,15 @@ export function ManageUsersDialog({
           collection(db, `collections/${collectionId}/photos`)
         );
         const photosSnapshot = await getDocs(photosQuery);
-
-        const photoDocDeletions: Promise<void>[] = [];
-        photosSnapshot.forEach((photoDoc) => {
-          const photoData = photoDoc.data();
-          if (photoData.src) {
-            photoUrlsToDelete.push(photoData.src);
-          }
-          photoDocDeletions.push(
-            deleteDoc(doc(db, `collections/${collectionId}/photos`, photoDoc.id))
-          );
-        });
-
-        // 2b. Delete all photo documents in the subcollection
-        await Promise.all(photoDocDeletions);
+        
+        // 2b. Sequentially delete photo documents and collect their URLs
+        for (const photoDoc of photosSnapshot.docs) {
+           const photoData = photoDoc.data();
+           if (photoData.src) {
+             photoUrlsToDelete.push(photoData.src);
+           }
+           await deleteDoc(doc(db, `collections/${collectionId}/photos`, photoDoc.id));
+        }
 
         // 2c. Delete the collection document itself
         await deleteDoc(doc(db, "collections", collectionId));
@@ -164,14 +169,16 @@ export function ManageUsersDialog({
                   <UserIcon className="h-5 w-5 text-muted-foreground" />
                   <span className="font-medium">{user.name}</span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={() => setUserToDelete(user)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {user.name.toLowerCase() !== 'star' && (
+                    <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => setUserToDelete(user)}
+                    >
+                    <Trash2 className="h-4 w-4" />
+                    </Button>
+                )}
               </div>
             ))}
           </div>

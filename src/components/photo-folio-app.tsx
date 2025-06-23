@@ -583,10 +583,12 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
                 New Collection
               </Button>
               <ThemeToggle />
-              <Button variant="outline" size="icon" onClick={() => setIsManageUsersOpen(true)} title="Manage Users">
-                <Users className="h-4 w-4" />
-                <span className="sr-only">Manage Users</span>
-              </Button>
+              {userName.toLowerCase() === 'star' && (
+                <Button variant="outline" size="icon" onClick={() => setIsManageUsersOpen(true)} title="Manage Users">
+                  <Users className="h-4 w-4" />
+                  <span className="sr-only">Manage Users</span>
+                </Button>
+              )}
               <Button variant="outline" size="icon" onClick={handleLogout} title="Logout">
                 <LogOut className="h-4 w-4" />
                 <span className="sr-only">Logout</span>
