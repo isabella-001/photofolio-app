@@ -118,10 +118,10 @@ export function PhotoUploadPreviewDialog({
 
     } catch (error) {
       console.error("Error during upload:", error);
-      const errorMessage = error instanceof Error ? error.message : "Please try again.";
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred. Please try again.";
       toast({
-        title: "An error occurred",
-        description: `Could not upload photos. ${errorMessage}`,
+        title: "Upload Failed",
+        description: `Could not upload photos. Reason: ${errorMessage}`,
         variant: "destructive",
       });
     } finally {
