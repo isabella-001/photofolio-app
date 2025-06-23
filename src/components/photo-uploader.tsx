@@ -62,13 +62,24 @@ export function PhotoUploader({ onUpload }: PhotoUploaderProps) {
     [handleFiles]
   );
 
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleFiles(e.clipboardData.files);
+    },
+    [handleFiles]
+  );
+
   return (
     <div
+      tabIndex={0}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onPaste={handlePaste}
       className={cn(
-        "relative flex flex-col items-center justify-center w-full p-8 my-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors duration-300",
+        "relative flex flex-col items-center justify-center w-full p-8 my-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-ring",
         isDragging
           ? "border-primary bg-primary/10"
           : "border-muted-foreground/50 hover:border-primary hover:bg-background/80"
@@ -85,7 +96,7 @@ export function PhotoUploader({ onUpload }: PhotoUploaderProps) {
         images here
       </p>
       <p className="text-xs text-center text-muted-foreground">
-        Or paste from your clipboard anywhere on the page
+        Or paste from clipboard. On mobile, tap here then hold to paste.
       </p>
     </div>
   );
