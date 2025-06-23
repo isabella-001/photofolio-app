@@ -15,10 +15,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Users } from "lucide-react";
-import { getUsers } from "@/lib/user-store";
+import { UserPlus } from "lucide-react";
+import { addUser } from "@/lib/user-store";
 
-export function LoginForm() {
+export function SignupForm() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -27,28 +27,23 @@ export function LoginForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const users = getUsers();
-    const user = users.find(
-      (u) => u.name.toLowerCase() === name.toLowerCase() && u.password === password
-    );
+    setError("");
 
-    if (user) {
-      setError("");
-      try {
-        localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("currentUser", JSON.stringify({ name: user.name }));
-        router.push("/folio");
-      } catch (e) {
-        console.error("Couldn't use localStorage", e);
-        toast({
-          title: "Login failed",
-          description:
-            "Could not save authentication state. Please enable cookies/localStorage.",
-          variant: "destructive",
-        });
-      }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long.");
+      return;
+    }
+
+    const result = addUser({ name, password });
+
+    if (result.success) {
+      toast({
+        title: "Signup Successful",
+        description: "You can now log in with your new account.",
+      });
+      router.push("/login");
     } else {
-      setError("Invalid name or password. Please try again.");
+      setError(result.message);
     }
   };
 
@@ -57,12 +52,12 @@ export function LoginForm() {
       <form onSubmit={handleSubmit}>
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary">
-              <Users className="h-8 w-8 text-primary-foreground" />
+             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary">
+              <UserPlus className="h-8 w-8 text-primary-foreground" />
             </div>
-            <CardTitle>PhotoFolio Access</CardTitle>
+            <CardTitle>Create Account</CardTitle>
             <CardDescription>
-              Please enter your name and password.
+              Choose a name and password to get started.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -87,7 +82,7 @@ export function LoginForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                 />
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
@@ -99,12 +94,12 @@ export function LoginForm() {
               className="w-full"
               disabled={!name || !password}
             >
-              Login
+              Sign Up
             </Button>
-            <p className="text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link href="/signup" className="text-primary hover:underline">
-                Sign Up
+             <p className="text-sm text-muted-foreground">
+              Already have an account?{" "}
+              <Link href="/login" className="text-primary hover:underline">
+                Log In
               </Link>
             </p>
           </CardFooter>

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { PlusCircle, Image as ImageIcon, Wind, Trash2, AlertCircle, LogOut } from "lucide-react";
+import { PlusCircle, Image as ImageIcon, Wind, Trash2, AlertCircle, LogOut, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PhotoUploadPreviewDialog } from "./photo-upload-preview-dialog";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
-import { db } from "@/lib/firebase";
+import { db, isFirebaseConfigured } from "@/lib/firebase";
 import {
   collection,
   query,
@@ -34,6 +34,7 @@ import {
 
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { ThemeToggle } from "./theme-toggle";
+import { ManageUsersDialog } from "./manage-users-dialog";
 
 // Interfaces
 interface Photo {
@@ -53,7 +54,8 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
   const router = useRouter();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateCollectionOpen, setIsCreateCollectionOpen] = useState(false);
+  const [isManageUsersOpen, setIsManageUsersOpen] = useState(false);
   const { toast } = useToast();
   const [filesToPreview, setFilesToPreview] = useState<File[]>([]);
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(
@@ -72,7 +74,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
     title: "",
   });
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     try {
       localStorage.removeItem('isAuthenticated');
       localStorage.removeItem('currentUser');
@@ -85,24 +87,38 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
         variant: "destructive",
       });
     }
-  };
+  }, [router, toast]);
 
-  if (!db) {
+  if (!isFirebaseConfigured || !db) {
     return (
-       <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="container mx-auto max-w-2xl p-4 md:p-6">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Firebase Not Configured or Invalid</AlertTitle>
             <AlertDescription>
-                <p className="mb-2">Your app is not connected to a Firebase backend, so data cannot be saved. This can happen if your Firebase configuration is missing or incorrect.</p>
-                <p className="font-semibold mt-4">To fix this for deployment:</p>
-                <ol className="list-decimal list-inside space-y-1 mt-1">
-                    <li>Go to your project settings on the Vercel dashboard.</li>
-                    <li>Navigate to the "Environment Variables" section.</li>
-                    <li>Ensure all the `NEXT_PUBLIC_FIREBASE_*` variables from your local `.env` file are present and have the correct values.</li>
-                </ol>
-                <p className="mt-3">After adding or correcting the variables, you must redeploy your project for the changes to take effect.</p>
+              <p className="mb-2">
+                Your app is not connected to a Firebase backend, so data cannot
+                be saved. This can happen if your Firebase configuration is
+                missing or incorrect.
+              </p>
+              <p className="font-semibold mt-4">To fix this for deployment:</p>
+              <ol className="list-decimal list-inside space-y-1 mt-1">
+                <li>
+                  Go to your project settings on the Vercel dashboard.
+                </li>
+                <li>
+                  Navigate to the &quot;Environment Variables&quot; section.
+                </li>
+                <li>
+                  Ensure all the `NEXT_PUBLIC_FIREBASE_*` variables from your
+                  local `.env` file are present and have the correct values.
+                </li>
+              </ol>
+              <p className="mt-3">
+                After adding or correcting the variables, you must
+                re-deploy your project for the changes to take effect.
+              </p>
             </AlertDescription>
           </Alert>
         </div>
@@ -396,8 +412,8 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
   return (
     <>
       <CreateCollectionDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
+        open={isCreateCollectionOpen}
+        onOpenChange={setIsCreateCollectionOpen}
         onCreate={handleCreateCollection}
       />
       <PhotoUploadPreviewDialog
@@ -428,6 +444,12 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
         }`}
         description={`Are you sure you want to delete "${dialogState.title}"? This action cannot be undone.`}
       />
+      <ManageUsersDialog
+        open={isManageUsersOpen}
+        onOpenChange={setIsManageUsersOpen}
+        currentUser={userName}
+        handleLogout={handleLogout}
+      />
       <div className="min-h-screen bg-background text-foreground">
         <header className="sticky top-0 z-10 w-full bg-background/80 backdrop-blur-md border-b">
           <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-6">
@@ -438,11 +460,15 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
               </h1>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={() => setIsDialogOpen(true)}>
+              <Button onClick={() => setIsCreateCollectionOpen(true)}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 New Collection
               </Button>
               <ThemeToggle />
+              <Button variant="outline" size="icon" onClick={() => setIsManageUsersOpen(true)} title="Manage Users">
+                <Users className="h-4 w-4" />
+                <span className="sr-only">Manage Users</span>
+              </Button>
               <Button variant="outline" size="icon" onClick={handleLogout} title="Logout">
                 <LogOut className="h-4 w-4" />
                 <span className="sr-only">Logout</span>
@@ -459,7 +485,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
               <p className="text-muted-foreground mt-2">
                 Start by creating a new collection to organize your photos.
               </p>
-              <Button onClick={() => setIsDialogOpen(true)} className="mt-6">
+              <Button onClick={() => setIsCreateCollectionOpen(true)} className="mt-6">
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Create Your First Collection
               </Button>
@@ -496,12 +522,10 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {collection.photos.length > 0 && (
-                    <PhotoGrid
-                      images={collection.photos}
-                      onDelete={handleDeletePhoto}
-                    />
-                  )}
+                  <PhotoGrid
+                    images={collection.photos}
+                    onDelete={handleDeletePhoto}
+                  />
                   <PhotoUploader
                     onUpload={(files) =>
                       handleInitiateUpload(collection.id, files)
