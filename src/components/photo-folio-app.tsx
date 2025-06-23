@@ -29,7 +29,6 @@ import {
   doc,
   getDocs,
 } from "firebase/firestore";
-import { del } from '@vercel/blob';
 
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 
