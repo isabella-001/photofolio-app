@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 type PhotoUploaderProps = {
-  onUpload: (imageUrls: string[]) => void;
+  onUpload: (files: File[]) => void;
 };
 
 export function PhotoUploader({ onUpload }: PhotoUploaderProps) {
@@ -30,12 +30,7 @@ export function PhotoUploader({ onUpload }: PhotoUploaderProps) {
         return;
       }
 
-      const urls = imageFiles.map((file) => URL.createObjectURL(file));
-      onUpload(urls);
-      toast({
-        title: "Upload successful!",
-        description: `${imageFiles.length} image(s) have been added.`,
-      });
+      onUpload(imageFiles);
     },
     [onUpload, toast]
   );

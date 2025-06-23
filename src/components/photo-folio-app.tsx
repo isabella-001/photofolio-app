@@ -15,10 +15,12 @@ import { PhotoUploader } from "@/components/photo-uploader";
 import { PhotoGrid } from "@/components/photo-grid";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PhotoUploadPreviewDialog } from "./photo-upload-preview-dialog";
 
 interface Photo {
   id: string;
   src: string;
+  title: string;
   hint?: string;
 }
 
@@ -33,6 +35,10 @@ export function PhotoFolioApp() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
+  const [filesToPreview, setFilesToPreview] = useState<File[]>([]);
+  const [activeCollectionId, setActiveCollectionId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     setCollections([
@@ -42,17 +48,20 @@ export function PhotoFolioApp() {
         photos: [
           {
             id: "p1",
-            src: "https://placehold.co/600x600.png",
+            src: "https://placehold.co/800x600.png",
+            title: "Misty Mountains",
             hint: "mountain landscape",
           },
           {
             id: "p2",
-            src: "https://placehold.co/600x600.png",
+            src: "https://placehold.co/600x800.png",
+            title: "Ocean's Expanse",
             hint: "ocean sunset",
           },
           {
             id: "p3",
             src: "https://placehold.co/600x600.png",
+            title: "Forest Trail",
             hint: "forest path",
           },
         ],
@@ -63,7 +72,8 @@ export function PhotoFolioApp() {
         photos: [
           {
             id: "p4",
-            src: "https://placehold.co/600x600.png",
+            src: "https://placehold.co/600x900.png",
+            title: "Joyful Smile",
             hint: "woman smiling",
           },
         ],
@@ -82,17 +92,25 @@ export function PhotoFolioApp() {
     setCollections((prev) => [newCollection, ...prev]);
   };
 
+  const handleInitiateUpload = (collectionId: string, files: File[]) => {
+    setActiveCollectionId(collectionId);
+    setFilesToPreview(files);
+  };
+
   const handleAddImagesToCollection = useCallback(
-    (collectionId: string, imageUrls: string[]) => {
-      const newPhotos: Photo[] = imageUrls.map((src) => ({
+    (collectionId: string, newPhotos: { src: string; title: string }[]) => {
+      if (!collectionId) return;
+
+      const photosToAdd: Photo[] = newPhotos.map((p) => ({
         id: crypto.randomUUID(),
-        src,
+        src: p.src,
+        title: p.title,
       }));
 
       setCollections((prev) =>
         prev.map((c) =>
           c.id === collectionId
-            ? { ...c, photos: [...c.photos, ...newPhotos] }
+            ? { ...c, photos: [...photosToAdd, ...c.photos] }
             : c
         )
       );
@@ -104,10 +122,10 @@ export function PhotoFolioApp() {
     (event: ClipboardEvent) => {
       if (collections.length === 0) {
         toast({
-            title: "No collection found",
-            description: "Please create a collection first to paste images.",
-            variant: "destructive"
-        })
+          title: "No collection found",
+          description: "Please create a collection first to paste images.",
+          variant: "destructive",
+        });
         return;
       }
       const files = event.clipboardData?.files;
@@ -119,15 +137,12 @@ export function PhotoFolioApp() {
 
       if (imageFiles.length > 0) {
         event.preventDefault();
-        const urls = imageFiles.map((file) => URL.createObjectURL(file));
-        handleAddImagesToCollection(collections[0].id, urls);
-        toast({
-          title: "Paste successful!",
-          description: `${imageFiles.length} image(s) have been added to "${collections[0].title}".`,
-        });
+        // Paste into the first collection by default
+        setActiveCollectionId(collections[0].id);
+        setFilesToPreview(imageFiles);
       }
     },
-    [collections, handleAddImagesToCollection, toast]
+    [collections, toast]
   );
 
   useEffect(() => {
@@ -180,6 +195,21 @@ export function PhotoFolioApp() {
         onOpenChange={setIsDialogOpen}
         onCreate={handleCreateCollection}
       />
+      <PhotoUploadPreviewDialog
+        open={filesToPreview.length > 0}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setFilesToPreview([]);
+            setActiveCollectionId(null);
+          }
+        }}
+        files={filesToPreview}
+        onConfirm={(newPhotos) => {
+          if (activeCollectionId) {
+            handleAddImagesToCollection(activeCollectionId, newPhotos);
+          }
+        }}
+      />
       <div className="min-h-screen bg-background text-foreground">
         <header className="sticky top-0 z-10 w-full bg-background/80 backdrop-blur-md border-b">
           <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-6">
@@ -228,8 +258,8 @@ export function PhotoFolioApp() {
                     <PhotoGrid images={collection.photos} />
                   )}
                   <PhotoUploader
-                    onUpload={(urls) =>
-                      handleAddImagesToCollection(collection.id, urls)
+                    onUpload={(files) =>
+                      handleInitiateUpload(collection.id, files)
                     }
                   />
                 </CardContent>

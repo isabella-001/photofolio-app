@@ -1,31 +1,50 @@
 "use client";
 
 import Image from "next/image";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "./ui/button";
+import { Pencil } from "lucide-react";
 
 type PhotoGridProps = {
-  images: { id: string; src: string; hint?: string }[];
+  images: { id: string; src: string; title: string; hint?: string }[];
 };
 
 export function PhotoGrid({ images }: PhotoGridProps) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
       {images.map((image) => (
         <Card
           key={image.id}
-          className="overflow-hidden rounded-lg shadow-md transition-all hover:shadow-xl hover:-translate-y-1"
+          className="overflow-hidden rounded-lg shadow-md transition-all hover:shadow-xl hover:-translate-y-1 flex flex-col group"
         >
-          <div className="aspect-square relative">
-            <Image
-              src={image.src}
-              alt="User uploaded content"
-              fill
-              className="object-cover"
-              unoptimized
-              sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 16.6vw"
-              data-ai-hint={image.hint || 'gallery photo'}
-            />
-          </div>
+          <Image
+            src={image.src}
+            alt={image.title}
+            width={400} // Base width for aspect ratio calculation
+            height={400} // Base height for aspect ratio calculation
+            className="w-full h-auto object-cover"
+            unoptimized
+            sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 16.6vw"
+            data-ai-hint={image.hint || "gallery photo"}
+          />
+          <CardContent className="p-3 mt-auto">
+            <div className="flex justify-between items-center gap-2">
+              <p
+                className="font-semibold text-sm truncate"
+                title={image.title}
+              >
+                {image.title}
+              </p>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Pencil className="h-3 w-3" />
+                <span className="sr-only">Edit title</span>
+              </Button>
+            </div>
+          </CardContent>
         </Card>
       ))}
     </div>
