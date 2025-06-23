@@ -3,25 +3,36 @@
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "./ui/button";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 type PhotoGridProps = {
   images: { id: string; src: string; title: string; hint?: string }[];
+  onDelete: (id: string) => void;
 };
 
-export function PhotoGrid({ images }: PhotoGridProps) {
+export function PhotoGrid({ images, onDelete }: PhotoGridProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
       {images.map((image) => (
         <Card
           key={image.id}
-          className="overflow-hidden rounded-lg shadow-md transition-all hover:shadow-xl hover:-translate-y-1 flex flex-col group"
+          className="overflow-hidden rounded-lg shadow-md transition-all hover:shadow-xl hover:-translate-y-1 flex flex-col group relative"
         >
+          <Button
+            variant="destructive"
+            size="icon"
+            className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+            onClick={() => onDelete(image.id)}
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="sr-only">Delete photo</span>
+          </Button>
+
           <Image
             src={image.src}
             alt={image.title}
-            width={400} // Base width for aspect ratio calculation
-            height={400} // Base height for aspect ratio calculation
+            width={400}
+            height={400}
             className="w-full h-auto object-cover"
             unoptimized
             sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 16.6vw"

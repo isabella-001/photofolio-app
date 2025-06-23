@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PlusCircle, Image as ImageIcon, Wind } from "lucide-react";
+import { PlusCircle, Image as ImageIcon, Wind, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,6 +16,7 @@ import { PhotoGrid } from "@/components/photo-grid";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PhotoUploadPreviewDialog } from "./photo-upload-preview-dialog";
+import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 
 interface Photo {
   id: string;
@@ -39,6 +40,17 @@ export function PhotoFolioApp() {
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(
     null
   );
+  const [dialogState, setDialogState] = useState<{
+    open: boolean;
+    type: "photo" | "collection" | null;
+    id: string | null;
+    title: string;
+  }>({
+    open: false,
+    type: null,
+    id: null,
+    title: "",
+  });
 
   useEffect(() => {
     setCollections([
@@ -137,13 +149,68 @@ export function PhotoFolioApp() {
 
       if (imageFiles.length > 0) {
         event.preventDefault();
-        // Paste into the first collection by default
         setActiveCollectionId(collections[0].id);
         setFilesToPreview(imageFiles);
       }
     },
     [collections, toast]
   );
+
+  const handleDeleteCollection = (
+    collectionId: string,
+    collectionTitle: string
+  ) => {
+    setDialogState({
+      open: true,
+      type: "collection",
+      id: collectionId,
+      title: collectionTitle,
+    });
+  };
+
+  const handleDeletePhoto = (photoId: string) => {
+    let photoTitle = "";
+    for (const collection of collections) {
+      const photo = collection.photos.find((p) => p.id === photoId);
+      if (photo) {
+        photoTitle = photo.title;
+        break;
+      }
+    }
+    setDialogState({
+      open: true,
+      type: "photo",
+      id: photoId,
+      title: photoTitle,
+    });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!dialogState.id || !dialogState.type) return;
+
+    if (dialogState.type === "collection") {
+      setCollections((prev) => prev.filter((c) => c.id !== dialogState.id));
+      toast({
+        title: "Collection deleted",
+        description: `The collection "${dialogState.title}" has been removed.`,
+      });
+    }
+
+    if (dialogState.type === "photo") {
+      setCollections((prev) =>
+        prev.map((c) => ({
+          ...c,
+          photos: c.photos.filter((p) => p.id !== dialogState.id),
+        }))
+      );
+      toast({
+        title: "Photo deleted",
+        description: `The photo "${dialogState.title}" has been removed.`,
+      });
+    }
+
+    setDialogState({ open: false, type: null, id: null, title: "" });
+  };
 
   useEffect(() => {
     document.addEventListener("paste", handlePaste);
@@ -210,6 +277,19 @@ export function PhotoFolioApp() {
           }
         }}
       />
+      <DeleteConfirmationDialog
+        open={dialogState.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDialogState({ open: false, type: null, id: null, title: "" });
+          }
+        }}
+        onConfirm={handleConfirmDelete}
+        title={`Delete ${
+          dialogState.type === "collection" ? "Collection" : "Photo"
+        }`}
+        description={`Are you sure you want to delete "${dialogState.title}"? This action cannot be undone.`}
+      />
       <div className="min-h-screen bg-background text-foreground">
         <header className="sticky top-0 z-10 w-full bg-background/80 backdrop-blur-md border-b">
           <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-6">
@@ -246,16 +326,36 @@ export function PhotoFolioApp() {
                 className="overflow-hidden shadow-lg transition-shadow hover:shadow-xl"
               >
                 <CardHeader>
-                  <CardTitle className="text-2xl">{collection.title}</CardTitle>
-                  {collection.photos.length > 0 && (
-                    <CardDescription>
-                      {collection.photos.length} photo(s)
-                    </CardDescription>
-                  )}
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-2xl">
+                        {collection.title}
+                      </CardTitle>
+                      {collection.photos.length > 0 && (
+                        <CardDescription>
+                          {collection.photos.length} photo(s)
+                        </CardDescription>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        handleDeleteCollection(collection.id, collection.title)
+                      }
+                    >
+                      <Trash2 className="h-5 w-5" />
+                      <span className="sr-only">Delete collection</span>
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {collection.photos.length > 0 && (
-                    <PhotoGrid images={collection.photos} />
+                    <PhotoGrid
+                      images={collection.photos}
+                      onDelete={handleDeletePhoto}
+                    />
                   )}
                   <PhotoUploader
                     onUpload={(files) =>
