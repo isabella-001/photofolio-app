@@ -32,6 +32,7 @@ import {
   where,
   updateDoc,
   Timestamp,
+  writeBatch,
 } from "firebase/firestore";
 
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -49,6 +50,7 @@ interface Photo {
   title: string;
   hint?: string;
   createdAt: Timestamp;
+  order?: number;
 }
 
 interface Collection {
@@ -168,11 +170,15 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
                 ...(photoDoc.data() as Omit<Photo, "id">),
               }));
 
-              // Sort photos on the client
+              // Sort photos by order, then by creation date
               photos.sort((a, b) => {
-                if (a.createdAt && b.createdAt) {
-                  return b.createdAt.toMillis() - a.createdAt.toMillis();
-                }
+                // Photos with an order field come first
+                if (a.order !== undefined && b.order === undefined) return -1;
+                if (a.order === undefined && b.order !== undefined) return 1;
+                // Both have an order field, sort by it
+                if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+                // Neither has an order field, sort by date (newest first)
+                if (a.createdAt && b.createdAt) return b.createdAt.toMillis() - a.createdAt.toMillis();
                 return 0;
               });
 
@@ -253,7 +259,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
       collectionId: string,
       newPhotos: { src: string; title: string }[]
     ) => {
-      if (!collectionId) return;
+      if (!collectionId || !db) return;
 
       toast({
         title: "Saving to collection...",
@@ -261,12 +267,17 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
       });
 
       try {
+        const collectionRef = collection(db, `collections/${collectionId}/photos`);
+        const photosSnapshot = await getDocs(query(collectionRef));
+        const existingPhotoCount = photosSnapshot.size;
+
         await Promise.all(
-          newPhotos.map((photo) => {
-            return addDoc(collection(db, `collections/${collectionId}/photos`), {
+          newPhotos.map((photo, index) => {
+            return addDoc(collectionRef, {
               src: photo.src, // This is now the Vercel Blob URL
               title: photo.title,
               createdAt: serverTimestamp(),
+              order: existingPhotoCount + index,
             });
           })
         );
@@ -473,6 +484,43 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
     setLightboxPhoto(photo);
   };
 
+  const handlePhotoReorder = async (collectionId: string, reorderedPhotos: Photo[]) => {
+    if (!db) return;
+
+    const originalCollections = [...collections];
+
+    // Immediately update local state for snappy UI
+    setCollections(prevCollections => 
+        prevCollections.map(c => 
+            c.id === collectionId 
+                ? { ...c, photos: reorderedPhotos.map((p, index) => ({ ...p, order: index })) } 
+                : c
+        )
+    );
+    
+    try {
+        const batch = writeBatch(db);
+        reorderedPhotos.forEach((photo, index) => {
+            const photoRef = doc(db, `collections/${collectionId}/photos`, photo.id);
+            batch.update(photoRef, { order: index });
+        });
+        await batch.commit();
+        toast({
+            title: "Order saved",
+            description: "The new photo order has been saved successfully.",
+        });
+    } catch (error) {
+        console.error("Error saving photo order:", error);
+        toast({
+            title: "Error Saving Order",
+            description: "Could not save the new photo order. Reverting changes.",
+            variant: "destructive",
+        });
+        // Revert state on error
+        setCollections(originalCollections);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -668,6 +716,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
                     onDelete={handleDeletePhoto}
                     onEditPhoto={(photo) => handleOpenEditPhoto(photo, collection.id)}
                     onPhotoClick={handlePhotoClick}
+                    onReorder={(reorderedPhotos) => handlePhotoReorder(collection.id, reorderedPhotos)}
                   />
                   <PhotoUploader
                     onUpload={(files) =>
