@@ -85,7 +85,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
     id: null,
     title: "",
   });
-  const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null);
+  const [lightboxState, setLightboxState] = useState<{ photo: Photo; collectionId: string } | null>(null);
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null);
   const [editingPhoto, setEditingPhoto] = useState<(Photo & { collectionId: string }) | null>(null);
 
@@ -480,8 +480,8 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
       }
   };
 
-  const handlePhotoClick = (photo: Photo) => {
-    setLightboxPhoto(photo);
+  const handlePhotoClick = (photo: Photo, collectionId: string) => {
+    setLightboxState({ photo, collectionId });
   };
 
   const handlePhotoReorder = async (collectionId: string, reorderedPhotos: Photo[]) => {
@@ -617,10 +617,10 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
         onSave={handleUpdatePhotoTitle}
       />
       <LightboxDialog
-        open={!!lightboxPhoto}
-        onOpenChange={(isOpen) => !isOpen && setLightboxPhoto(null)}
-        src={lightboxPhoto?.src}
-        alt={lightboxPhoto?.title}
+        open={!!lightboxState}
+        onOpenChange={(isOpen) => !isOpen && setLightboxState(null)}
+        photo={lightboxState?.photo ?? null}
+        collectionId={lightboxState?.collectionId ?? null}
       />
       <div className="min-h-screen bg-background text-foreground">
         <header className="sticky top-0 z-10 w-full bg-background/80 backdrop-blur-md border-b">
@@ -715,7 +715,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
                     images={collection.photos}
                     onDelete={handleDeletePhoto}
                     onEditPhoto={(photo) => handleOpenEditPhoto(photo, collection.id)}
-                    onPhotoClick={handlePhotoClick}
+                    onPhotoClick={(photo) => handlePhotoClick(photo, collection.id)}
                     onReorder={(reorderedPhotos) => handlePhotoReorder(collection.id, reorderedPhotos)}
                   />
                   <PhotoUploader
