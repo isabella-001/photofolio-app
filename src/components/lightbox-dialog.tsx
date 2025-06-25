@@ -25,7 +25,6 @@ import {
 } from "firebase/firestore";
 import { upload } from "@vercel/blob/client";
 import { ScrollArea } from "./ui/scroll-area";
-import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 import { Loader2, Trash2 } from "lucide-react";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
@@ -193,74 +192,71 @@ export function LightboxDialog({
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col p-0">
+          <div className="p-4 md:p-6 shrink-0 border-b">
+            <div className="w-full aspect-video relative mb-4 bg-muted/20 rounded-lg">
+              <Image
+                src={photo.src}
+                alt={photo.title || "Full resolution view"}
+                fill
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <DialogHeader className="text-left">
+              <DialogTitle className="text-2xl">{photo.title}</DialogTitle>
+            </DialogHeader>
+          </div>
+
           <ScrollArea className="flex-grow min-h-0">
             <div className="p-4 md:p-6">
-              <div className="w-full aspect-video relative mb-4 bg-muted/20 rounded-lg">
-                <Image
-                  src={photo.src}
-                  alt={photo.title || "Full resolution view"}
-                  fill
-                  className="w-full h-full object-contain"
-                />
-              </div>
-
-              <DialogHeader className="text-left mb-2">
-                <DialogTitle className="text-2xl">{photo.title}</DialogTitle>
-              </DialogHeader>
-
-              <Separator className="my-4" />
-
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Related Photos</h3>
-                {isLoadingVariants ? (
-                  <div className="flex items-center justify-center h-24">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  </div>
-                ) : (
-                  <>
-                    {variants.length > 0 ? (
-                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                        {variants.map((variant) => (
-                          <div key={variant.id} className="relative group aspect-square">
-                            <Image
-                              src={variant.src}
-                              alt="Photo variant"
-                              fill
-                              className="object-cover rounded-md"
-                              sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                            />
-                            <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => setVariantToDelete(variant)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Delete variant</span>
-                              </Button>
-                            </div>
+              <h3 className="text-lg font-semibold mb-3">Related Photos</h3>
+              {isLoadingVariants ? (
+                <div className="flex items-center justify-center h-24">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <>
+                  {variants.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                      {variants.map((variant) => (
+                        <div key={variant.id} className="relative group aspect-square">
+                          <Image
+                            src={variant.src}
+                            alt="Photo variant"
+                            fill
+                            className="object-cover rounded-md"
+                            sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                          />
+                          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => setVariantToDelete(variant)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete variant</span>
+                            </Button>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-muted-foreground text-sm">
-                        No related photos have been added yet.
-                      </p>
-                    )}
-                  </>
-                )}
-
-                <div className="mt-6">
-                  {isUploading ? (
-                     <div className="flex items-center justify-center p-8 border-2 border-dashed rounded-lg">
-                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mr-2" />
-                        <p>Uploading...</p>
+                        </div>
+                      ))}
                     </div>
                   ) : (
-                     <PhotoUploader onUpload={handleUpload} />
+                    <p className="text-muted-foreground text-sm">
+                      No related photos have been added yet.
+                    </p>
                   )}
-                </div>
+                </>
+              )}
+
+              <div className="mt-6">
+                {isUploading ? (
+                    <div className="flex items-center justify-center p-8 border-2 border-dashed rounded-lg">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mr-2" />
+                      <p>Uploading...</p>
+                  </div>
+                ) : (
+                    <PhotoUploader onUpload={handleUpload} />
+                )}
               </div>
             </div>
           </ScrollArea>
