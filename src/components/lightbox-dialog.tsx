@@ -193,7 +193,7 @@ export function LightboxDialog({
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col p-0">
-          <ScrollArea className="flex-grow">
+          <ScrollArea className="flex-grow min-h-0">
             <div className="p-4 md:p-6">
               <div className="w-full aspect-video relative mb-4 bg-muted/20 rounded-lg">
                 <Image
