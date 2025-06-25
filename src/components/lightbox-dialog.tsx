@@ -190,8 +190,7 @@ export function LightboxDialog({
         description="Are you sure you want to delete this photo variant? This action cannot be undone."
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col p-0">
-          <div className="p-4 md:p-6 shrink-0 border-b bg-background">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
             <div className="w-full aspect-video relative mb-4 bg-muted/20 rounded-lg">
               <Image
                 src={photo.src}
@@ -200,13 +199,11 @@ export function LightboxDialog({
                 className="w-full h-full object-contain"
               />
             </div>
-            <DialogHeader className="text-left">
+            <DialogHeader className="text-left mb-6">
               <DialogTitle className="text-2xl">{photo.title}</DialogTitle>
             </DialogHeader>
-          </div>
 
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-4 md:p-6">
+            <div>
               <h3 className="text-lg font-semibold mb-3">Related Photos</h3>
               {isLoadingVariants ? (
                 <div className="flex items-center justify-center h-24">
@@ -258,7 +255,6 @@ export function LightboxDialog({
                 )}
               </div>
             </div>
-          </div>
         </DialogContent>
       </Dialog>
     </>
