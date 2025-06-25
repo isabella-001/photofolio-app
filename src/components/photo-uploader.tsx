@@ -81,6 +81,7 @@ export function PhotoUploader({ onUpload }: PhotoUploaderProps) {
         onPaste={handlePaste}
         className="absolute inset-0 z-10 w-full h-full p-8 bg-transparent border-none outline-none resize-none opacity-0 cursor-pointer"
         aria-label="Paste image from clipboard"
+        readOnly
       />
       <div className="flex flex-col items-center justify-center text-center pointer-events-none">
         <UploadCloud
