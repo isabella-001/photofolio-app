@@ -24,7 +24,6 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { upload } from "@vercel/blob/client";
-import { ScrollArea } from "./ui/scroll-area";
 import { Button } from "./ui/button";
 import { Loader2, Trash2 } from "lucide-react";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
@@ -192,7 +191,7 @@ export function LightboxDialog({
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col p-0">
-          <div className="p-4 md:p-6 shrink-0 border-b">
+          <div className="p-4 md:p-6 shrink-0 border-b bg-background">
             <div className="w-full aspect-video relative mb-4 bg-muted/20 rounded-lg">
               <Image
                 src={photo.src}
@@ -206,7 +205,7 @@ export function LightboxDialog({
             </DialogHeader>
           </div>
 
-          <ScrollArea className="flex-grow min-h-0">
+          <div className="flex-1 overflow-y-auto">
             <div className="p-4 md:p-6">
               <h3 className="text-lg font-semibold mb-3">Related Photos</h3>
               {isLoadingVariants ? (
@@ -259,7 +258,7 @@ export function LightboxDialog({
                 )}
               </div>
             </div>
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
     </>
