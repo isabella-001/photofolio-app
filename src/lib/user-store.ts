@@ -1,3 +1,4 @@
+
 'use client';
 
 import { getFirebase, isFirebaseConfigured } from "@/lib/firebase";
@@ -50,12 +51,16 @@ async function initializeDefaultUsers() {
     }
 }
 
+// Call initialization once when the module is loaded.
+if (isFirebaseConfigured) {
+    initializeDefaultUsers();
+}
+
 export async function getUsers(): Promise<User[]> {
     const { db } = getFirebase();
     if (!db) {
         throw new Error("Firebase not initialized. Cannot fetch users.");
     }
-    await initializeDefaultUsers();
     const usersCollection = collection(db, "users");
     const usersSnapshot = await getDocs(usersCollection);
     return usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
@@ -73,31 +78,19 @@ export async function validateUser(name: string, password_provided: string): Pro
     try {
         const usersCollection = collection(db, "users");
         const q = query(usersCollection, where("name", "==", name.toLowerCase()));
-        
         const querySnapshot = await getDocs(q);
 
-        // One-time initialization if the entire collection is empty
         if (querySnapshot.empty) {
-            const allUsersSnapshot = await getDocs(query(usersCollection, limit(1)));
-            if (allUsersSnapshot.empty) {
-                await initializeDefaultUsers();
-                // Re-run the query after initialization
-                const retrySnapshot = await getDocs(q);
-                if (retrySnapshot.empty) return null; // User not found after init
-                 const userDoc = retrySnapshot.docs[0];
-                 const userData = userDoc.data() as DocumentData;
-                 if (userData.password === password_provided) {
-                    return { id: userDoc.id, name: userData.name, password: userData.password };
-                 }
-            }
-             return null;
-        } else {
-            const userDoc = querySnapshot.docs[0];
-            const userData = userDoc.data() as DocumentData;
-            if (userData.password === password_provided) {
-                return { id: userDoc.id, name: userData.name, password: userData.password };
-            }
+            return null; // User not found
         }
+        
+        const userDoc = querySnapshot.docs[0];
+        const userData = userDoc.data() as DocumentData;
+
+        if (userData.password === password_provided) {
+            return { id: userDoc.id, name: userData.name, password: userData.password };
+        }
+        
         return null; // Password incorrect
     } catch (error) {
         console.error("Error during user validation:", error);
@@ -119,7 +112,6 @@ export async function addUser(newUser: Omit<User, 'id'>): Promise<{ success: boo
     }
 
     try {
-        await initializeDefaultUsers();
         const usersCollection = collection(db, "users");
         const q = query(usersCollection, where("name", "==", newUser.name.toLowerCase()));
         const querySnapshot = await getDocs(q);

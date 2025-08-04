@@ -1,28 +1,26 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Allow public read access to users collection for login/signup checks
+    // Login/Signup: Allow reading/creating users
     match /users/{userId} {
-      allow read: if true;
-      allow create: if true;
-      allow update, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, create: if true;
+      allow update, delete: if false; // Or add specific admin/owner logic
     }
-
-    // A user can only manage their own collections
+    
+    // Collections and Photos: Only authenticated users can access
     match /collections/{collectionId} {
-      allow read, create, update, delete: if request.auth != null && request.resource.data.userName == request.auth.token.name;
-    }
+      allow read, write, delete: if request.auth != null;
+      
+      match /photos/{photoId} {
+        allow read, write, delete: if request.auth != null;
 
-    // A user can only manage photos within their own collections
-    match /collections/{collectionId}/photos/{photoId} {
-       allow read, create, update, delete: if get(/databases/$(database)/documents/collections/$(collectionId)).data.userName == request.auth.token.name;
-    }
-
-    // A user can only manage variants within their own collections/photos
-    match /collections/{collectionId}/photos/{photoId}/variants/{variantId} {
-       allow read, create, update, delete: if get(/databases/$(database)/documents/collections/$(collectionId)).data.userName == request.auth.token.name;
+        match /variants/{variantId} {
+           allow read, write, delete: if request.auth != null;
+        }
+      }
     }
   }
 }
