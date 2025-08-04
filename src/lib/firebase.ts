@@ -11,35 +11,28 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-let app: FirebaseApp | null = null;
-let db: Firestore | null = null;
-let storage: FirebaseStorage | null = null;
-
-// This boolean flag can be used in your components to check if Firebase is configured.
 export const isFirebaseConfigured = !!(
   firebaseConfig.projectId && firebaseConfig.apiKey
 );
 
-function initializeFirebase() {
-  if (isFirebaseConfigured && !getApps().length) {
-    try {
-      app = initializeApp(firebaseConfig);
-      db = getFirestore(app);
-      storage = getStorage(app);
-    } catch (e) {
-      console.error("Failed to initialize Firebase", e);
+function initializeFirebaseServices() {
+    if (!isFirebaseConfigured) {
+        console.warn("Firebase is not configured. Please create a .env file with your project credentials.");
+        return { app: null, db: null, storage: null };
     }
-  } else if (getApps().length) {
-    app = getApp();
-    db = getFirestore(app);
-    storage = getStorage(app);
-  } else {
-     console.warn("Firebase is not configured. Please create a .env file with your project credentials.");
-  }
+
+    try {
+        const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+        return { app, db, storage };
+    } catch (e) {
+        console.error("Failed to initialize Firebase", e);
+        return { app: null, db: null, storage: null };
+    }
 }
 
-// Call initialization
-initializeFirebase();
+const { app, db, storage } = initializeFirebaseServices();
 
 interface FirebaseServices {
     app: FirebaseApp | null;
@@ -47,11 +40,7 @@ interface FirebaseServices {
     storage: FirebaseStorage | null;
 }
 
-// Export a getter function to ensure services are initialized before use
 export function getFirebase(): FirebaseServices {
-    if (!app || !db || !storage) {
-        initializeFirebase();
-    }
     return { app, db, storage };
 }
 
