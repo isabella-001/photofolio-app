@@ -15,24 +15,31 @@ export const isFirebaseConfigured = !!(
   firebaseConfig.projectId && firebaseConfig.apiKey
 );
 
-function initializeFirebaseServices() {
-    if (!isFirebaseConfigured) {
-        console.warn("Firebase is not configured. Please create a .env file with your project credentials.");
-        return { app: null, db: null, storage: null };
+let app: FirebaseApp;
+let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
+
+if (isFirebaseConfigured) {
+    if (!getApps().length) {
+        try {
+            app = initializeApp(firebaseConfig);
+        } catch (e) {
+            console.error("Failed to initialize Firebase app", e);
+        }
+    } else {
+        app = getApp();
     }
 
-    try {
-        const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-        const db = getFirestore(app);
-        const storage = getStorage(app);
-        return { app, db, storage };
-    } catch (e) {
-        console.error("Failed to initialize Firebase", e);
-        return { app: null, db: null, storage: null };
+    if (app) {
+        try {
+            db = getFirestore(app);
+            storage = getStorage(app);
+        } catch(e) {
+            console.error("Failed to initialize Firebase services", e);
+        }
     }
 }
 
-const { app, db, storage } = initializeFirebaseServices();
 
 interface FirebaseServices {
     app: FirebaseApp | null;
@@ -41,7 +48,5 @@ interface FirebaseServices {
 }
 
 export function getFirebase(): FirebaseServices {
-    return { app, db, storage };
+    return { app: app!, db, storage };
 }
-
-export { app, db, storage };

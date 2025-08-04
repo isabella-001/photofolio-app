@@ -89,18 +89,7 @@ export async function validateUser(name: string, password_provided: string): Pro
         
         const querySnapshot = await getDocs(q);
         if (querySnapshot.empty) {
-            // To prevent username enumeration, we still run the initialization check.
-            // This ensures a similar response time whether the user exists or not.
-            await initializeDefaultUsers();
-            const recheckSnapshot = await getDocs(q);
-            if (recheckSnapshot.empty) {
-                return null; // User not found after recheck
-            }
-            const userDoc = recheckSnapshot.docs[0];
-            const userData = userDoc.data() as DocumentData;
-            if (userData.password === password_provided) {
-                return { id: userDoc.id, name: userData.name, password: userData.password };
-            }
+             return null;
         } else {
             const userDoc = querySnapshot.docs[0];
             const userData = userDoc.data() as DocumentData;
