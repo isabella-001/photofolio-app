@@ -1,7 +1,9 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PlusCircle, Image as ImageIcon, Wind, Trash2, AlertCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { PlusCircle, Image as ImageIcon, Wind, Trash2, AlertCircle, LogOut, Users, Pencil, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,16 +24,24 @@ import {
   collection,
   query,
   onSnapshot,
-  orderBy,
   addDoc,
   serverTimestamp,
   deleteDoc,
   doc,
   getDocs,
+  where,
+  updateDoc,
+  Timestamp,
+  writeBatch,
 } from "firebase/firestore";
 
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { ThemeToggle } from "./theme-toggle";
+import { ManageUsersDialog } from "./manage-users-dialog";
+import { EditCollectionDialog } from "./edit-collection-dialog";
+import { EditPhotoTitleDialog } from "./edit-photo-title-dialog";
+import { LightboxDialog } from "./lightbox-dialog";
+import { ChangePasswordDialog } from "./change-password-dialog";
 
 // Interfaces
 interface Photo {
@@ -39,18 +49,25 @@ interface Photo {
   src: string;
   title: string;
   hint?: string;
+  createdAt: Timestamp;
+  order?: number;
 }
 
 interface Collection {
   id: string;
   title: string;
+  userName: string;
   photos: Photo[];
+  createdAt: Timestamp;
 }
 
-export function PhotoFolioApp() {
+export function PhotoFolioApp({ userName }: { userName: string }) {
+  const router = useRouter();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateCollectionOpen, setIsCreateCollectionOpen] = useState(false);
+  const [isManageUsersOpen, setIsManageUsersOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const { toast } = useToast();
   const [filesToPreview, setFilesToPreview] = useState<File[]>([]);
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(
@@ -68,17 +85,55 @@ export function PhotoFolioApp() {
     id: null,
     title: "",
   });
+  const [lightboxState, setLightboxState] = useState<{ photo: Photo; collectionId: string } | null>(null);
+  const [editingCollection, setEditingCollection] = useState<Collection | null>(null);
+  const [editingPhoto, setEditingPhoto] = useState<(Photo & { collectionId: string }) | null>(null);
 
-  if (!isFirebaseConfigured) {
+  const handleLogout = useCallback(() => {
+    try {
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('currentUser');
+      router.push('/login');
+    } catch (e) {
+      console.error("Couldn't use localStorage", e);
+      toast({
+        title: "Logout failed",
+        description: "Could not clear authentication state.",
+        variant: "destructive",
+      });
+    }
+  }, [router, toast]);
+
+  if (!db) {
     return (
-       <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="container mx-auto max-w-2xl p-4 md:p-6">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Firebase Not Configured</AlertTitle>
+            <AlertTitle>Firebase Not Configured or Invalid</AlertTitle>
             <AlertDescription>
-              <p className="mb-2">Your app is not connected to a backend, so data cannot be saved.</p>
-              <p>Please create a Firebase project and add your configuration keys to a <strong>.env</strong> file in the root of this project to get started.</p>
+              <p className="mb-2">
+                Your app is not connected to a Firebase backend, so data cannot
+                be saved. This can happen if your Firebase configuration is
+                missing or incorrect.
+              </p>
+              <p className="font-semibold mt-4">To fix this for deployment:</p>
+              <ol className="list-decimal list-inside space-y-1 mt-1">
+                <li>
+                  Go to your project settings on the Vercel dashboard.
+                </li>
+                <li>
+                  Navigate to the &quot;Environment Variables&quot; section.
+                </li>
+                <li>
+                  Ensure all the `NEXT_PUBLIC_FIREBASE_*` variables from your
+                  local `.env` file are present and have the correct values.
+                </li>
+              </ol>
+              <p className="mt-3">
+                After adding or correcting the variables, you must
+                re-deploy your project for the changes to take effect.
+              </p>
             </AlertDescription>
           </Alert>
         </div>
@@ -88,43 +143,96 @@ export function PhotoFolioApp() {
 
   // Fetch collections and their photos from Firestore
   useEffect(() => {
+    if (!db || !userName) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    // Query without orderBy to avoid needing a composite index
     const q = query(
-      collection(db!, "collections"),
-      orderBy("createdAt", "desc")
+      collection(db, "collections"),
+      where("userName", "==", userName)
     );
 
-    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
-      const collectionsData: Collection[] = await Promise.all(
-        querySnapshot.docs.map(async (collectionDoc) => {
-          const photosQuery = query(
-            collection(db!, `collections/${collectionDoc.id}/photos`),
-            orderBy("createdAt", "desc")
-          );
-          const photosSnapshot = await getDocs(photosQuery);
-          const photos = photosSnapshot.docs.map((photoDoc) => ({
-            id: photoDoc.id,
-            ...(photoDoc.data() as Omit<Photo, 'id'>),
-          }));
+    const unsubscribe = onSnapshot(
+      q,
+      async (querySnapshot) => {
+        try {
+          const collectionsData: Collection[] = await Promise.all(
+            querySnapshot.docs.map(async (collectionDoc) => {
+              // Query photos without ordering to prevent index issues
+              const photosQuery = query(
+                collection(db, `collections/${collectionDoc.id}/photos`)
+              );
+              const photosSnapshot = await getDocs(photosQuery);
+              const photos = photosSnapshot.docs.map((photoDoc) => ({
+                id: photoDoc.id,
+                ...(photoDoc.data() as Omit<Photo, "id">),
+              }));
 
-          return {
-            id: collectionDoc.id,
-            title: collectionDoc.data().title,
-            photos,
-          };
-        })
-      );
-      setCollections(collectionsData);
-      setLoading(false);
-    });
+              // Sort photos by order, then by creation date
+              photos.sort((a, b) => {
+                // Photos with an order field come first
+                if (a.order !== undefined && b.order === undefined) return -1;
+                if (a.order === undefined && b.order !== undefined) return 1;
+                // Both have an order field, sort by it
+                if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+                // Neither has an order field, sort by date (newest first)
+                if (a.createdAt && b.createdAt) return b.createdAt.toMillis() - a.createdAt.toMillis();
+                return 0;
+              });
+
+              return {
+                id: collectionDoc.id,
+                ...(collectionDoc.data() as Omit<
+                  Collection,
+                  "id" | "photos"
+                >),
+                photos,
+              };
+            })
+          );
+          
+          // Sort collections by creation date on the client
+          collectionsData.sort((a, b) => {
+              if (a.createdAt && b.createdAt) {
+                  return b.createdAt.toMillis() - a.createdAt.toMillis();
+              }
+              return 0;
+          });
+
+          setCollections(collectionsData);
+          setLoading(false);
+        } catch (error) {
+          console.error("Error processing collections data:", error);
+          toast({
+            title: "Error Processing Data",
+            description: "There was an issue processing the data from the database. Please check the console for details.",
+            variant: "destructive",
+          });
+          setLoading(false);
+        }
+      },
+      (error) => {
+        console.error("Error fetching collections:", error);
+        toast({
+          title: "Error Loading Data",
+          description:
+            "Could not load collections. This might be due to a missing database index or a network issue.",
+          variant: "destructive",
+        });
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
-  }, []);
+  }, [userName, toast]);
 
   const handleCreateCollection = async (title: string) => {
     try {
-      await addDoc(collection(db!, "collections"), {
+      await addDoc(collection(db, "collections"), {
         title,
+        userName: userName,
         createdAt: serverTimestamp(),
       });
       toast({
@@ -151,7 +259,7 @@ export function PhotoFolioApp() {
       collectionId: string,
       newPhotos: { src: string; title: string }[]
     ) => {
-      if (!collectionId) return;
+      if (!collectionId || !db) return;
 
       toast({
         title: "Saving to collection...",
@@ -159,12 +267,17 @@ export function PhotoFolioApp() {
       });
 
       try {
+        const collectionRef = collection(db, `collections/${collectionId}/photos`);
+        const photosSnapshot = await getDocs(query(collectionRef));
+        const existingPhotoCount = photosSnapshot.size;
+
         await Promise.all(
-          newPhotos.map((photo) => {
-            return addDoc(collection(db!, `collections/${collectionId}/photos`), {
+          newPhotos.map((photo, index) => {
+            return addDoc(collectionRef, {
               src: photo.src, // This is now the Vercel Blob URL
               title: photo.title,
               createdAt: serverTimestamp(),
+              order: existingPhotoCount + index,
             });
           })
         );
@@ -280,12 +393,12 @@ export function PhotoFolioApp() {
         // Delete photo documents from Firestore
         await Promise.all(
           photosToDelete.map(photo => 
-            deleteDoc(doc(db!, `collections/${collectionId}/photos`, photo.id))
+            deleteDoc(doc(db, `collections/${collectionId}/photos`, photo.id))
           )
         );
 
         // Delete collection document from Firestore
-        await deleteDoc(doc(db!, "collections", collectionId));
+        await deleteDoc(doc(db, "collections", collectionId));
 
         toast({
           title: "Collection deleted",
@@ -313,7 +426,7 @@ export function PhotoFolioApp() {
         
         // Delete from Firestore
         await deleteDoc(
-          doc(db!, `collections/${collectionId}/photos`, dialogState.id!)
+          doc(db, `collections/${collectionId}/photos`, dialogState.id!)
         );
 
         toast({
@@ -332,6 +445,82 @@ export function PhotoFolioApp() {
 
     setDialogState({ open: false, type: null, id: null, title: "" });
   };
+
+  const handleOpenEditCollection = (collection: Collection) => {
+    setEditingCollection(collection);
+  };
+
+  const handleUpdateCollectionTitle = async (newTitle: string) => {
+      if (!editingCollection || !db) return;
+      try {
+          const collectionRef = doc(db, 'collections', editingCollection.id);
+          await updateDoc(collectionRef, { title: newTitle });
+          toast({ title: 'Success', description: 'Collection title updated.' });
+          setEditingCollection(null);
+      } catch (error) {
+          console.error('Error updating collection title:', error);
+          toast({ title: 'Error', description: 'Failed to update collection title.', variant: 'destructive' });
+      }
+  };
+
+  const handleOpenEditPhoto = (photo: Photo, collectionId: string) => {
+      setEditingPhoto({ ...photo, collectionId });
+  };
+
+  const handleUpdatePhotoTitle = async (newTitle: string) => {
+      if (!editingPhoto || !db) return;
+      try {
+          const photoRef = doc(db, `collections/${editingPhoto.collectionId}/photos`, editingPhoto.id);
+          await updateDoc(photoRef, { title: newTitle });
+          toast({ title: 'Success', description: 'Photo title updated.' });
+          setEditingPhoto(null);
+      } catch (error) {
+          console.error('Error updating photo title:', error);
+          toast({ title: 'Error', description: 'Failed to update photo title.', variant: 'destructive' });
+      }
+  };
+
+  const handlePhotoClick = (photo: Photo, collectionId: string) => {
+    setLightboxState({ photo, collectionId });
+  };
+
+  const handlePhotoReorder = async (collectionId: string, reorderedPhotos: Photo[]) => {
+    if (!db) return;
+
+    const originalCollections = [...collections];
+
+    // Immediately update local state for snappy UI
+    setCollections(prevCollections => 
+        prevCollections.map(c => 
+            c.id === collectionId 
+                ? { ...c, photos: reorderedPhotos.map((p, index) => ({ ...p, order: index })) } 
+                : c
+        )
+    );
+    
+    try {
+        const batch = writeBatch(db);
+        reorderedPhotos.forEach((photo, index) => {
+            const photoRef = doc(db, `collections/${collectionId}/photos`, photo.id);
+            batch.update(photoRef, { order: index });
+        });
+        await batch.commit();
+        toast({
+            title: "Order saved",
+            description: "The new photo order has been saved successfully.",
+        });
+    } catch (error) {
+        console.error("Error saving photo order:", error);
+        toast({
+            title: "Error Saving Order",
+            description: "Could not save the new photo order. Reverting changes.",
+            variant: "destructive",
+        });
+        // Revert state on error
+        setCollections(originalCollections);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -372,8 +561,8 @@ export function PhotoFolioApp() {
   return (
     <>
       <CreateCollectionDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
+        open={isCreateCollectionOpen}
+        onOpenChange={setIsCreateCollectionOpen}
         onCreate={handleCreateCollection}
       />
       <PhotoUploadPreviewDialog
@@ -404,6 +593,35 @@ export function PhotoFolioApp() {
         }`}
         description={`Are you sure you want to delete "${dialogState.title}"? This action cannot be undone.`}
       />
+      <ManageUsersDialog
+        open={isManageUsersOpen}
+        onOpenChange={setIsManageUsersOpen}
+        currentUser={userName}
+        handleLogout={handleLogout}
+      />
+      <ChangePasswordDialog
+        open={isChangePasswordOpen}
+        onOpenChange={setIsChangePasswordOpen}
+        userName={userName}
+      />
+      <EditCollectionDialog
+        open={!!editingCollection}
+        onOpenChange={(isOpen) => !isOpen && setEditingCollection(null)}
+        initialTitle={editingCollection?.title || ""}
+        onSave={handleUpdateCollectionTitle}
+      />
+      <EditPhotoTitleDialog
+        open={!!editingPhoto}
+        onOpenChange={(isOpen) => !isOpen && setEditingPhoto(null)}
+        initialTitle={editingPhoto?.title || ""}
+        onSave={handleUpdatePhotoTitle}
+      />
+      <LightboxDialog
+        open={!!lightboxState}
+        onOpenChange={(isOpen) => !isOpen && setLightboxState(null)}
+        photo={lightboxState?.photo ?? null}
+        collectionId={lightboxState?.collectionId ?? null}
+      />
       <div className="min-h-screen bg-background text-foreground">
         <header className="sticky top-0 z-10 w-full bg-background/80 backdrop-blur-md border-b">
           <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-6">
@@ -414,11 +632,25 @@ export function PhotoFolioApp() {
               </h1>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={() => setIsDialogOpen(true)}>
+              <Button onClick={() => setIsCreateCollectionOpen(true)}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 New Collection
               </Button>
               <ThemeToggle />
+              <Button variant="outline" size="icon" onClick={() => setIsChangePasswordOpen(true)} title="Change Password">
+                  <Key className="h-4 w-4" />
+                  <span className="sr-only">Change Password</span>
+              </Button>
+              {userName.toLowerCase() === 'star' && (
+                <Button variant="outline" size="icon" onClick={() => setIsManageUsersOpen(true)} title="Manage Users">
+                  <Users className="h-4 w-4" />
+                  <span className="sr-only">Manage Users</span>
+                </Button>
+              )}
+              <Button variant="outline" size="icon" onClick={handleLogout} title="Logout">
+                <LogOut className="h-4 w-4" />
+                <span className="sr-only">Logout</span>
+              </Button>
             </div>
           </div>
         </header>
@@ -431,7 +663,7 @@ export function PhotoFolioApp() {
               <p className="text-muted-foreground mt-2">
                 Start by creating a new collection to organize your photos.
               </p>
-              <Button onClick={() => setIsDialogOpen(true)} className="mt-6">
+              <Button onClick={() => setIsCreateCollectionOpen(true)} className="mt-6">
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Create Your First Collection
               </Button>
@@ -454,26 +686,38 @@ export function PhotoFolioApp() {
                         </CardDescription>
                       )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() =>
-                        handleDeleteCollection(collection.id, collection.title)
-                      }
-                    >
-                      <Trash2 className="h-5 w-5" />
-                      <span className="sr-only">Delete collection</span>
-                    </Button>
+                     <div className="flex items-center gap-2">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-primary"
+                            onClick={() => handleOpenEditCollection(collection)}
+                        >
+                            <Pencil className="h-5 w-5" />
+                            <span className="sr-only">Edit collection title</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() =>
+                            handleDeleteCollection(collection.id, collection.title)
+                          }
+                        >
+                          <Trash2 className="h-5 w-5" />
+                          <span className="sr-only">Delete collection</span>
+                        </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {collection.photos.length > 0 && (
-                    <PhotoGrid
-                      images={collection.photos}
-                      onDelete={handleDeletePhoto}
-                    />
-                  )}
+                  <PhotoGrid
+                    images={collection.photos}
+                    onDelete={handleDeletePhoto}
+                    onEditPhoto={(photo) => handleOpenEditPhoto(photo, collection.id)}
+                    onPhotoClick={(photo) => handlePhotoClick(photo, collection.id)}
+                    onReorder={(reorderedPhotos) => handlePhotoReorder(collection.id, reorderedPhotos)}
+                  />
                   <PhotoUploader
                     onUpload={(files) =>
                       handleInitiateUpload(collection.id, files)

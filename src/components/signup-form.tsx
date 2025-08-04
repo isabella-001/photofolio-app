@@ -15,10 +15,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Users } from "lucide-react";
-import { validateUser } from "@/lib/user-store";
+import { Loader2, UserPlus } from "lucide-react";
+import { addUser } from "@/lib/user-store";
 
-export function LoginForm() {
+export function SignupForm() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -29,25 +29,32 @@ export function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsSubmitting(true);
-    
-    try {
-      const user = await validateUser(name, password);
 
-      if (user) {
-        localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("currentUser", JSON.stringify({ name: user.name }));
-        router.push("/folio");
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long.");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      const result = await addUser({ name, password });
+
+      if (result.success) {
+        toast({
+          title: "Signup Successful",
+          description: "You can now log in with your new account.",
+        });
+        router.push("/login");
       } else {
-        setError("Invalid name or password. Please try again.");
+        setError(result.message);
       }
     } catch (err) {
-       console.error("Login failed:", err);
+       console.error("Signup failed:", err);
        const message = err instanceof Error ? err.message : "An unexpected error occurred.";
-       setError(`Login failed: ${message}`);
+       setError(`Signup failed: ${message}`);
        toast({
-         title: "Login Failed",
-         description: message,
+         title: "Signup Failed",
+         description: "Could not connect to the database. Please check your connection and try again.",
          variant: "destructive",
        });
     } finally {
@@ -60,12 +67,12 @@ export function LoginForm() {
       <form onSubmit={handleSubmit}>
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary">
-              <Users className="h-8 w-8 text-primary-foreground" />
+             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary">
+              <UserPlus className="h-8 w-8 text-primary-foreground" />
             </div>
-            <CardTitle>PhotoFolio Access</CardTitle>
+            <CardTitle>Create Account</CardTitle>
             <CardDescription>
-              Please enter your name and password.
+              Choose a name and password to get started.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -91,7 +98,7 @@ export function LoginForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   disabled={isSubmitting}
                 />
               </div>
@@ -105,12 +112,12 @@ export function LoginForm() {
               disabled={!name || !password || isSubmitting}
             >
               {isSubmitting && <Loader2 className="mr-2 animate-spin" />}
-              {isSubmitting ? "Logging in..." : "Login"}
+              {isSubmitting ? "Signing up..." : "Sign Up"}
             </Button>
-            <p className="text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link href="/signup" className="text-primary hover:underline">
-                Sign Up
+             <p className="text-sm text-muted-foreground">
+              Already have an account?{" "}
+              <Link href="/login" className="text-primary hover:underline">
+                Log In
               </Link>
             </p>
           </CardFooter>
