@@ -21,12 +21,6 @@ export interface User {
     password?: string;
 }
 
-const DEFAULT_USERS: Omit<User, 'id'>[] = [
-  { name: "isabella", password: "password123" },
-  { name: "studio", password: "firebase" },
-  { name: "star", password: "supernova" },
-];
-
 async function initializeDefaultUsers() {
     const { db } = getFirebase();
     if (!db) {
@@ -38,6 +32,11 @@ async function initializeDefaultUsers() {
         const snapshot = await getDocs(query(usersCollection, limit(1)));
         if (snapshot.empty) {
             console.log("No users found in Firestore. Initializing default users...");
+            const DEFAULT_USERS: Omit<User, 'id'>[] = [
+              { name: "isabella", password: "password123" },
+              { name: "studio", password: "firebase" },
+              { name: "star", password: "supernova" },
+            ];
             const promises = DEFAULT_USERS.map(user => 
                 addDoc(usersCollection, {
                     name: user.name.toLowerCase(),
@@ -55,6 +54,7 @@ async function initializeDefaultUsers() {
 if (isFirebaseConfigured) {
     initializeDefaultUsers();
 }
+
 
 export async function getUsers(): Promise<User[]> {
     const { db } = getFirebase();
