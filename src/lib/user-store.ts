@@ -15,7 +15,7 @@ import {
   updateDoc,
   writeBatch
 } from "firebase/firestore";
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 
 const SALT_ROUNDS = 10;
 
@@ -66,10 +66,9 @@ async function initializeDefaultUsers() {
 }
 
 // Call initialization once when the module is loaded.
-// This is safe because Firestore writeBatch is idempotent.
-// If this were a real production app, this logic would ideally be in a
-// backend deployment script or a secure cloud function.
-getFirebase().db && initializeDefaultUsers();
+if (typeof window !== 'undefined') {
+    getFirebase().db && initializeDefaultUsers();
+}
 
 
 export async function getUsers(): Promise<User[]> {
