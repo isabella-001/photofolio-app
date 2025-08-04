@@ -81,9 +81,6 @@ export async function validateUser(name: string, password_provided: string): Pro
     };
     
     try {
-        // Ensure defaults are available on first login attempt.
-        await initializeDefaultUsers();
-
         const usersCollection = collection(db, "users");
         const q = query(usersCollection, where("name", "==", name.toLowerCase()));
         
