@@ -20,33 +20,36 @@ let db: Firestore | null = null;
 let storage: FirebaseStorage | null = null;
 
 if (isFirebaseConfigured) {
-    if (!getApps().length) {
-        try {
-            app = initializeApp(firebaseConfig);
-        } catch (e) {
-            console.error("Failed to initialize Firebase app", e);
-        }
-    } else {
-        app = getApp();
+  // This check is crucial for Next.js to prevent re-initializing on every render.
+  if (!getApps().length) {
+    try {
+      app = initializeApp(firebaseConfig);
+    } catch (e) {
+      console.error("Failed to initialize Firebase app", e);
     }
+  } else {
+    app = getApp();
+  }
 
-    if (app) {
-        try {
-            db = getFirestore(app);
-            storage = getStorage(app);
-        } catch(e) {
-            console.error("Failed to initialize Firebase services", e);
-        }
+  if (app) {
+    try {
+      db = getFirestore(app);
+      storage = getStorage(app);
+    } catch (e) {
+      console.error("Failed to initialize Firebase services", e);
     }
+  }
 }
-
 
 interface FirebaseServices {
-    app: FirebaseApp | null;
-    db: Firestore | null;
-    storage: FirebaseStorage | null;
+  app: FirebaseApp | null;
+  db: Firestore | null;
+  storage: FirebaseStorage | null;
 }
 
+// This function is the single source of truth for accessing Firebase services.
 export function getFirebase(): FirebaseServices {
-    return { app: app!, db, storage };
+  // If db is not initialized, it means there's a configuration issue.
+  // The isFirebaseConfigured check at the top level handles this.
+  return { app: app!, db, storage };
 }

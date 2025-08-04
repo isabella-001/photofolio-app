@@ -88,7 +88,23 @@ export async function validateUser(name: string, password_provided: string): Pro
         const q = query(usersCollection, where("name", "==", name.toLowerCase()));
         
         const querySnapshot = await getDocs(q);
+
+        // One-time initialization if the entire collection is empty
         if (querySnapshot.empty) {
+            const allUsersSnapshot = await getDocs(query(usersCollection, limit(1)));
+            if (allUsersSnapshot.empty) {
+                await initializeDefaultUsers();
+                // Re-run the query after initialization
+                const retrySnapshot = await getDocs(q);
+                if (retrySnapshot.empty) {
+                    return null; // User still not found after init
+                }
+                 const userDoc = retrySnapshot.docs[0];
+                 const userData = userDoc.data() as DocumentData;
+                 if (userData.password === password_provided) {
+                    return { id: userDoc.id, name: userData.name, password: userData.password };
+                 }
+            }
              return null;
         } else {
             const userDoc = querySnapshot.docs[0];
@@ -121,6 +137,7 @@ export async function addUser(newUser: Omit<User, 'id'>): Promise<{ success: boo
     }
 
     try {
+        await initializeDefaultUsers(); // Ensure defaults are there before checking
         const usersCollection = collection(db, "users");
         const q = query(usersCollection, where("name", "==", newUser.name.toLowerCase()));
         const querySnapshot = await getDocs(q);
