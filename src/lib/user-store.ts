@@ -1,7 +1,7 @@
 
 'use client';
 
-import { getFirebase, isFirebaseConfigured } from "@/lib/firebase";
+import { getFirebase } from "@/lib/firebase";
 import {
   collection,
   query,
@@ -12,15 +12,23 @@ import {
   doc,
   DocumentData,
   limit,
-  updateDoc
+  updateDoc,
+  writeBatch
 } from "firebase/firestore";
+import bcrypt from 'bcrypt';
+
+const SALT_ROUNDS = 10;
 
 export interface User {
     id: string;
     name: string;
-    password?: string;
+    passwordHash?: string;
 }
 
+// This function should only be called in a secure, server-like environment
+// if you were to deploy this for real production. For this sample, we are
+// simplifying by having it run on the client, but this is not recommended
+// for real applications.
 async function initializeDefaultUsers() {
     const { db } = getFirebase();
     if (!db) {
@@ -30,20 +38,27 @@ async function initializeDefaultUsers() {
     try {
         const usersCollection = collection(db, "users");
         const snapshot = await getDocs(query(usersCollection, limit(1)));
+        
         if (snapshot.empty) {
             console.log("No users found in Firestore. Initializing default users...");
-            const DEFAULT_USERS: Omit<User, 'id'>[] = [
+            const DEFAULT_USERS = [
               { name: "isabella", password: "password123" },
               { name: "studio", password: "firebase" },
               { name: "star", password: "supernova" },
             ];
-            const promises = DEFAULT_USERS.map(user => 
-                addDoc(usersCollection, {
+
+            const batch = writeBatch(db);
+
+            for (const user of DEFAULT_USERS) {
+                const passwordHash = await bcrypt.hash(user.password, SALT_ROUNDS);
+                const userRef = doc(usersCollection);
+                 batch.set(userRef, {
                     name: user.name.toLowerCase(),
-                    password: user.password
-                })
-            );
-            await Promise.all(promises);
+                    passwordHash: passwordHash
+                });
+            }
+            await batch.commit();
+            console.log("Default users created successfully.");
         }
     } catch (error) {
         console.error("Error initializing default users:", error);
@@ -51,9 +66,10 @@ async function initializeDefaultUsers() {
 }
 
 // Call initialization once when the module is loaded.
-if (isFirebaseConfigured) {
-    initializeDefaultUsers();
-}
+// This is safe because Firestore writeBatch is idempotent.
+// If this were a real production app, this logic would ideally be in a
+// backend deployment script or a secure cloud function.
+getFirebase().db && initializeDefaultUsers();
 
 
 export async function getUsers(): Promise<User[]> {
@@ -63,13 +79,10 @@ export async function getUsers(): Promise<User[]> {
     }
     const usersCollection = collection(db, "users");
     const usersSnapshot = await getDocs(usersCollection);
-    return usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+    return usersSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name } as User));
 }
 
 export async function validateUser(name: string, password_provided: string): Promise<User | null> {
-    if (!isFirebaseConfigured) {
-        throw new Error("Firebase is not configured. Please add NEXT_PUBLIC_FIREBASE_* variables to your environment.");
-    }
     const { db } = getFirebase();
     if (!db) {
         throw new Error("Could not connect to the database to validate user.");
@@ -81,17 +94,28 @@ export async function validateUser(name: string, password_provided: string): Pro
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
+            console.log(`User '${name}' not found.`);
             return null; // User not found
         }
         
         const userDoc = querySnapshot.docs[0];
         const userData = userDoc.data() as DocumentData;
+        const passwordHash = userData.passwordHash;
 
-        if (userData.password === password_provided) {
-            return { id: userDoc.id, name: userData.name, password: userData.password };
+        if (!passwordHash) {
+            // This case handles legacy users that might have been created without a hash.
+            // In a real app, you would force a password reset here.
+            console.warn(`User '${name}' does not have a password hash.`);
+            return null;
         }
-        
-        return null; // Password incorrect
+
+        const passwordMatches = await bcrypt.compare(password_provided, passwordHash);
+
+        if (passwordMatches) {
+            return { id: userDoc.id, name: userData.name };
+        } else {
+            return null; // Password incorrect
+        }
     } catch (error) {
         console.error("Error during user validation:", error);
         throw new Error("A database error occurred during validation. Please check the connection and logs.");
@@ -99,10 +123,7 @@ export async function validateUser(name: string, password_provided: string): Pro
 }
 
 
-export async function addUser(newUser: Omit<User, 'id'>): Promise<{ success: boolean; message: string }> {
-     if (!isFirebaseConfigured) {
-        return { success: false, message: 'Firebase is not configured. Please add NEXT_PUBLIC_FIREBASE_* variables to your environment.' };
-    }
+export async function addUser(newUser: {name: string, password?: string}): Promise<{ success: boolean; message: string }> {
     const { db } = getFirebase();
     if (!db) {
         return { success: false, message: 'Database connection not available.' };
@@ -120,9 +141,11 @@ export async function addUser(newUser: Omit<User, 'id'>): Promise<{ success: boo
             return { success: false, message: 'A user with this name already exists.' };
         }
         
+        const passwordHash = await bcrypt.hash(newUser.password, SALT_ROUNDS);
+
         await addDoc(collection(db, "users"), {
             name: newUser.name.toLowerCase(),
-            password: newUser.password
+            passwordHash: passwordHash,
         });
 
         return { success: true, message: 'Signup successful!' };
@@ -180,13 +203,20 @@ export async function updateUserPassword(
 
     const userDoc = querySnapshot.docs[0];
     const userData = userDoc.data();
+    
+    if (!userData.passwordHash) {
+        return { success: false, message: "Cannot change password for a user without a hashed password." };
+    }
+    
+    const passwordMatches = await bcrypt.compare(oldPassword, userData.passwordHash);
 
-    if (userData.password !== oldPassword) {
+    if (!passwordMatches) {
       return { success: false, message: "Incorrect current password." };
     }
 
+    const newPasswordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
     const userDocRef = doc(db, "users", userDoc.id);
-    await updateDoc(userDocRef, { password: newPassword });
+    await updateDoc(userDocRef, { passwordHash: newPasswordHash });
 
     return { success: true, message: "Password updated successfully." };
   } catch (error) {

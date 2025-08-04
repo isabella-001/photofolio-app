@@ -232,3 +232,12 @@ INFO: Detected non-HTTP/2 connection.
 [debug] [2025-08-04T18:31:05.718Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-app:securityRules 200
 [debug] [2025-08-04T18:31:05.720Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-app:securityRules {}
 [info] ✔  firestore: Rules updated. 
+[info] i  firestore: Change detected, updating rules... 
+[debug] [2025-08-04T18:35:58.931Z] >>> [apiv2][query] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-app:securityRules [none]
+[debug] [2025-08-04T18:35:58.934Z] >>> [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-app:securityRules {"ignore_errors":true,"rules":{"files":[{"name":"security.rules","content":"rules_version = '2';\n\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    // Allow public creation of user documents, but do not allow reads or updates to the password hash.\n    match /users/{userId} {\n      allow create: if request.resource.data.keys().hasOnly(['name', 'passwordHash']);\n      allow read, update, delete: if false; // Disallow reading/updating user documents directly\n    }\n\n    // Allow anyone to read the users collection to check for existing names.\n    // This is required for signup validation.\n    // Restrict the query to only check the 'name' field.\n    match /users/{userId} {\n        allow list: if request.query.resource.__name__[1] == 'users' && request.query.limit <= 10;\n    }\n\n    // Allow authenticated users to manage their own collections and photos.\n    match /collections/{collectionId}/{document=**} {\n      allow read, write: if request.auth != null && request.auth.uid == resource.data.userName;\n    }\n  }\n}\n"}]}}
+[debug] [2025-08-04T18:35:58.966Z] Aug 04, 2025 6:35:58 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+INFO: Detected non-HTTP/2 connection.
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Aug 04, 2025 6:35:58 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\nINFO: Detected non-HTTP/2 connection.\n"}}
+[debug] [2025-08-04T18:35:59.191Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-app:securityRules 200
+[debug] [2025-08-04T18:35:59.193Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/demo-app:securityRules {}
+[info] ✔  firestore: Rules updated. 
