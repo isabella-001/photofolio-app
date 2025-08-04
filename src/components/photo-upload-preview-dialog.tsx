@@ -121,11 +121,9 @@ export function PhotoUploadPreviewDialog({
       let errorMessage = "An unknown error occurred. Please try again.";
       if (error instanceof Error) {
         try {
-          // The error message from Vercel Blob client is the server's JSON response body.
           const serverError = JSON.parse(error.message);
           errorMessage = serverError.error || `A server error occurred: ${error.message}`;
         } catch (parseError) {
-          // If parsing fails, use the original message from the client library.
           errorMessage = error.message;
         }
       }
@@ -150,31 +148,33 @@ export function PhotoUploadPreviewDialog({
             will be generated for you.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-grow -mx-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-6">
-            {previews.map((p, index) => (
-              <div key={p.previewUrl} className="space-y-2">
-                <div className="rounded-md overflow-hidden aspect-square">
-                  <Image
-                    src={p.previewUrl}
-                    alt={`Preview ${index + 1}`}
-                    width={200}
-                    height={200}
-                    className="object-cover w-full h-full"
+        <div className="flex-1 flex flex-col min-h-0">
+          <ScrollArea className="flex-grow -mx-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-6">
+              {previews.map((p, index) => (
+                <div key={p.previewUrl} className="space-y-2">
+                  <div className="rounded-md overflow-hidden aspect-square">
+                    <Image
+                      src={p.previewUrl}
+                      alt={`Preview ${index + 1}`}
+                      width={200}
+                      height={200}
+                      className="object-cover w-full h-full"
+                    />
+                  </div>
+                  <Input
+                    type="text"
+                    placeholder="Enter title..."
+                    value={p.title}
+                    onChange={(e) => handleTitleChange(index, e.target.value)}
+                    disabled={isProcessing}
+                    className="text-sm"
                   />
                 </div>
-                <Input
-                  type="text"
-                  placeholder="Enter title..."
-                  value={p.title}
-                  onChange={(e) => handleTitleChange(index, e.target.value)}
-                  disabled={isProcessing}
-                  className="text-sm"
-                />
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
         <DialogFooter>
           <Button
             type="button"
