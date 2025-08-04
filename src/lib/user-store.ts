@@ -1,6 +1,6 @@
 'use client';
 
-import { getFirebase } from "@/lib/firebase";
+import { getFirebase, isFirebaseConfigured } from "@/lib/firebase";
 import {
   collection,
   query,
@@ -64,7 +64,6 @@ export async function getUsers(): Promise<User[]> {
         console.error("Firebase not initialized. Cannot fetch users.");
         return [];
     }
-    // Ensure defaults are created if the app is started for the first time.
     await initializeDefaultUsers();
     const usersCollection = collection(db, "users");
     const usersSnapshot = await getDocs(usersCollection);
@@ -75,6 +74,10 @@ export async function getUsers(): Promise<User[]> {
  * Validates a user's credentials against Firestore.
  */
 export async function validateUser(name: string, password_provided: string): Promise<User | null> {
+    if (!isFirebaseConfigured) {
+        throw new Error("Firebase is not configured. Please add NEXT_PUBLIC_FIREBASE_* variables to your environment.");
+    }
+
     const { db } = getFirebase();
     if (!db) {
         throw new Error("Could not connect to the database to validate user.");
@@ -86,14 +89,24 @@ export async function validateUser(name: string, password_provided: string): Pro
         
         const querySnapshot = await getDocs(q);
         if (querySnapshot.empty) {
-            return null; // User not found
-        }
-
-        const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data() as DocumentData;
-
-        if (userData.password === password_provided) {
-            return { id: userDoc.id, name: userData.name, password: userData.password };
+            // To prevent username enumeration, we still run the initialization check.
+            // This ensures a similar response time whether the user exists or not.
+            await initializeDefaultUsers();
+            const recheckSnapshot = await getDocs(q);
+            if (recheckSnapshot.empty) {
+                return null; // User not found after recheck
+            }
+            const userDoc = recheckSnapshot.docs[0];
+            const userData = userDoc.data() as DocumentData;
+            if (userData.password === password_provided) {
+                return { id: userDoc.id, name: userData.name, password: userData.password };
+            }
+        } else {
+            const userDoc = querySnapshot.docs[0];
+            const userData = userDoc.data() as DocumentData;
+            if (userData.password === password_provided) {
+                return { id: userDoc.id, name: userData.name, password: userData.password };
+            }
         }
 
         return null; // Password incorrect
@@ -107,6 +120,9 @@ export async function validateUser(name: string, password_provided: string): Pro
  * Adds a new user to Firestore.
  */
 export async function addUser(newUser: Omit<User, 'id'>): Promise<{ success: boolean; message: string }> {
+     if (!isFirebaseConfigured) {
+        return { success: false, message: 'Firebase is not configured. Please add NEXT_PUBLIC_FIREBASE_* variables to your environment.' };
+    }
     const { db } = getFirebase();
     if (!db) {
         return { success: false, message: 'Database connection not available.' };
