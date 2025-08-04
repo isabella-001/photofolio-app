@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getUsers, removeUser, User } from "@/lib/user-store";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 import { Trash2, User as UserIcon, Loader2 } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { getFirebase } from "@/lib/firebase";
 import {
   collection,
   query,
@@ -42,6 +42,7 @@ export function ManageUsersDialog({
   const [isDeleting, setIsDeleting] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const { toast } = useToast();
+  const { db } = getFirebase();
 
   useEffect(() => {
     if (open) {

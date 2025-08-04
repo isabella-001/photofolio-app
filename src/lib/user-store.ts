@@ -1,6 +1,6 @@
 'use client';
 
-import { db } from "@/lib/firebase";
+import { getFirebase } from "@/lib/firebase";
 import {
   collection,
   query,
@@ -31,7 +31,11 @@ const DEFAULT_USERS: Omit<User, 'id'>[] = [
  * This is a one-time operation for a new database.
  */
 async function initializeDefaultUsers() {
-    if (!db) return;
+    const { db } = getFirebase();
+    if (!db) {
+        console.warn("Database not available, skipping default user initialization.");
+        return;
+    }
     try {
         const usersCollection = collection(db, "users");
         // Check for any document. Using limit(1) is efficient.
@@ -48,8 +52,6 @@ async function initializeDefaultUsers() {
         }
     } catch (error) {
         console.error("Error initializing default users:", error);
-        // Re-throw as a standard error to be caught by callers
-        throw new Error("Could not initialize default users in the database.");
     }
 }
 
@@ -57,6 +59,7 @@ async function initializeDefaultUsers() {
  * Fetches all users from Firestore.
  */
 export async function getUsers(): Promise<User[]> {
+    const { db } = getFirebase();
     if (!db) {
         console.error("Firebase not initialized. Cannot fetch users.");
         return [];
@@ -72,7 +75,10 @@ export async function getUsers(): Promise<User[]> {
  * Validates a user's credentials against Firestore.
  */
 export async function validateUser(name: string, password_provided: string): Promise<User | null> {
-    if (!db) return null;
+    const { db } = getFirebase();
+    if (!db) {
+        throw new Error("Could not connect to the database to validate user.");
+    };
     
     try {
         // Ensure defaults are available on first login attempt.
@@ -104,6 +110,7 @@ export async function validateUser(name: string, password_provided: string): Pro
  * Adds a new user to Firestore.
  */
 export async function addUser(newUser: Omit<User, 'id'>): Promise<{ success: boolean; message: string }> {
+    const { db } = getFirebase();
     if (!db) {
         return { success: false, message: 'Database connection not available.' };
     }
@@ -136,6 +143,7 @@ export async function addUser(newUser: Omit<User, 'id'>): Promise<{ success: boo
  * Removes a user from Firestore by name.
  */
 export async function removeUser(name: string): Promise<{ success: boolean; message?: string }> {
+    const { db } = getFirebase();
     if (!db) return { success: false, message: "Database connection not available." };
     if (name.toLowerCase() === 'star') {
         console.warn("Attempted to remove the protected 'star' user.");
@@ -170,6 +178,7 @@ export async function updateUserPassword(
   oldPassword: string,
   newPassword: string
 ): Promise<{ success: boolean; message: string }> {
+  const { db } = getFirebase();
   if (!db) {
     return { success: false, message: "Database connection not available." };
   }

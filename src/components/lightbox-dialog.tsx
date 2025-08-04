@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { PhotoUploader } from "./photo-uploader";
 import { useToast } from "@/hooks/use-toast";
-import { db } from "@/lib/firebase";
+import { getFirebase } from "@/lib/firebase";
 import {
   collection,
   query,
@@ -61,6 +61,7 @@ export function LightboxDialog({
   const [isUploading, setIsUploading] = useState(false);
   const [variantToDelete, setVariantToDelete] = useState<PhotoVariant | null>(null);
   const { toast } = useToast();
+  const { db } = getFirebase();
 
   useEffect(() => {
     if (open && photo && collectionId && db) {
@@ -95,7 +96,7 @@ export function LightboxDialog({
     } else {
       setVariants([]);
     }
-  }, [open, photo, collectionId, toast]);
+  }, [open, photo, collectionId, toast, db]);
 
   const handleUpload = useCallback(
     async (files: File[]) => {
@@ -138,7 +139,7 @@ export function LightboxDialog({
         setIsUploading(false);
       }
     },
-    [photo, collectionId, toast]
+    [photo, collectionId, toast, db]
   );
   
   const handleDeleteVariant = async () => {

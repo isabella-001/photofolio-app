@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PhotoUploadPreviewDialog } from "./photo-upload-preview-dialog";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { getFirebase, isFirebaseConfigured } from "@/lib/firebase";
 import {
   collection,
   query,
@@ -103,6 +103,8 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
       });
     }
   }, [router, toast]);
+
+  const { db } = getFirebase();
 
   if (!db) {
     return (
@@ -226,9 +228,10 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
     );
 
     return () => unsubscribe();
-  }, [userName, toast]);
+  }, [userName, toast, db]);
 
   const handleCreateCollection = async (title: string) => {
+    if (!db) return;
     try {
       await addDoc(collection(db, "collections"), {
         title,
@@ -294,7 +297,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
         });
       }
     },
-    [toast]
+    [toast, db]
   );
 
   const handlePaste = useCallback(
@@ -373,7 +376,7 @@ export function PhotoFolioApp({ userName }: { userName: string }) {
   };
 
   const handleConfirmDelete = async () => {
-    if (!dialogState.id || !dialogState.type) return;
+    if (!dialogState.id || !dialogState.type || !db) return;
 
     if (dialogState.type === "collection") {
       const { id: collectionId, title, meta } = dialogState;
